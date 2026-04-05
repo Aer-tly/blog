@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>关于 | Aertly</title>
+  <meta name="description" content="关于写作者、写作习惯与这个博客如何慢慢生长。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Noto+Serif+SC:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+  >
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body data-page="about">
+  <div class="petal-field" aria-hidden="true"></div>
+  <div class="petal petal-b"></div>
+  <div class="petal petal-c"></div>
+
+  <div class="page-shell">
+    <header class="site-header">
+      <a class="brand" href="./index.html">
+        <span class="brand-avatar">
+          <img src="./person.jpg" alt="头像">
+        </span>
+        <span class="brand-text">
+          <strong>Aertly</strong>
+        </span>
+      </a>
+      <nav class="site-nav">
+        <a href="./index.html" data-nav="home">首页</a>
+        <a href="./essays.html" data-nav="essays">文章</a>
+        <a href="./projects.html" data-nav="projects">笔记</a>
+        <a href="./about.html" data-nav="about">关于</a>
+      </nav>
+      <button class="music-toggle" id="music-toggle" type="button" aria-pressed="false">BGM Off</button>
+    </header>
+
+    <main>
+      <section class="about-intro-header" data-reveal>
+        <p class="about-motto" id="about-motto"></p>
+        <div class="about-profile-band">
+          <img class="about-profile-avatar" src="./person.jpg" alt="头像">
+          <h2 class="about-nickname" id="about-nickname"></h2>
+          <div class="about-friend-links" id="about-friend-links"></div>
+        </div>
+      </section>
+
+      <section class="about-article" data-reveal>
+        <section class="about-block">
+          <h1 id="about-intro-title"></h1>
+          <div class="about-copy" id="about-intro-block"></div>
+        </section>
+
+        <section class="about-block">
+          <h2 id="about-basic-title"></h2>
+          <div class="about-copy" id="about-basic-block"></div>
+        </section>
+
+        <section class="about-block">
+          <h2 id="about-hobbies-title"></h2>
+          <div class="favorite-list about-favorites" id="favorite-list"></div>
+        </section>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p>© 2026 Aertly</p>
+      <a href="./index.html">返回首页</a>
+    </footer>
+  </div>
+
+  <audio id="bgm" loop preload="auto">
+    <source src="./bgm.mp3" type="audio/mpeg">
+  </audio>
+  <script src="./content.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>

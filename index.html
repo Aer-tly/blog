@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aertly | 个人博客</title>
+  <meta
+    name="description"
+    content="以春日教室感、灰蓝空气与少量樱色点缀为基调的个人博客模板。"
+  >
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Noto+Serif+SC:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+  >
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body data-page="home">
+  <div class="petal-field" aria-hidden="true"></div>
+  <div class="petal petal-a"></div>
+  <div class="petal petal-b"></div>
+  <div class="petal petal-c"></div>
+
+  <div class="page-shell">
+    <header class="site-header">
+      <a class="brand" href="#top">
+        <span class="brand-avatar">
+          <img src="./person.jpg" alt="头像">
+        </span>
+        <span class="brand-text">
+          <strong>Aertly</strong>
+        </span>
+      </a>
+      <nav class="site-nav">
+        <a href="./index.html" data-nav="home">首页</a>
+        <a href="./essays.html" data-nav="essays">文章</a>
+        <a href="./projects.html" data-nav="projects">笔记</a>
+        <a href="./about.html" data-nav="about">关于</a>
+      </nav>
+      <button class="music-toggle" id="music-toggle" type="button" aria-pressed="false">BGM Off</button>
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <div class="hero-scene" aria-hidden="true">
+          <div class="scene-window">
+            <div class="scene-image"></div>
+            <div class="scene-overlay"></div>
+          </div>
+        </div>
+        <aside class="hero-card">
+          <div class="hero-nav-list">
+            <a class="hero-nav-item" href="./essays.html">
+              <strong>文章</strong>
+              <i class="feather feather-a" aria-hidden="true"></i>
+            </a>
+            <a class="hero-nav-item" href="./projects.html">
+              <strong>笔记</strong>
+              <i class="feather feather-b" aria-hidden="true"></i>
+            </a>
+            <a class="hero-nav-item" href="./about.html">
+              <strong>关于</strong>
+              <i class="feather feather-c" aria-hidden="true"></i>
+            </a>
+          </div>
+        </aside>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p>© 2026 Aertly</p>
+      <a href="#top">回到页首</a>
+    </footer>
+  </div>
+
+  <audio id="bgm" loop preload="auto">
+    <source src="./bgm.mp3" type="audio/mpeg">
+  </audio>
+  <script src="./content.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>

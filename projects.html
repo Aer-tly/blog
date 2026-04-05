@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>笔记 | Aertly</title>
+  <meta name="description" content="Aertly 的笔记页，收纳专题、视觉实验与长期项目。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Noto+Serif+SC:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+  >
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body data-page="projects">
+  <div class="petal-field" aria-hidden="true"></div>
+  <div class="petal petal-a"></div>
+  <div class="petal petal-c"></div>
+
+  <div class="page-shell">
+    <header class="site-header">
+      <a class="brand" href="./index.html">
+        <span class="brand-avatar">
+          <img src="./person.jpg" alt="头像">
+        </span>
+        <span class="brand-text">
+          <strong>Aertly</strong>
+        </span>
+      </a>
+      <nav class="site-nav">
+        <a href="./index.html" data-nav="home">首页</a>
+        <a href="./essays.html" data-nav="essays">文章</a>
+        <a href="./projects.html" data-nav="projects">笔记</a>
+        <a href="./about.html" data-nav="about">关于</a>
+      </nav>
+      <button class="music-toggle" id="music-toggle" type="button" aria-pressed="false">BGM Off</button>
+    </header>
+
+    <main>
+      <section class="page-hero" data-reveal>
+          <p class="eyebrow">Notes And Fragments</p>
+          <h1>施工中</h1>
+          <p>施工中</p>
+      </section>
+
+      <section class="page-section">
+        <div class="section-heading">
+          <p class="eyebrow">Notes</p>
+          <h2>笔记</h2>
+        </div>
+        <div class="project-board" id="projects-grid"></div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p>© 2026 Aertly</p>
+      <a href="./index.html">返回首页</a>
+    </footer>
+  </div>
+
+  <audio id="bgm" loop preload="auto">
+    <source src="./bgm.mp3" type="audio/mpeg">
+  </audio>
+  <script src="./content.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
