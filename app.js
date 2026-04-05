@@ -201,6 +201,144 @@ function renderNote() {
   related.forEach((item) => relatedList.appendChild(createProjectCard(item)));
 }
 
+function setupComments() {
+  const form = byId("comment-form");
+  const list = byId("comment-list");
+  if (!form || !list) {
+    return;
+  }
+
+  const page = document.body.dataset.page;
+  const params = new URLSearchParams(window.location.search);
+  const slug = params.get("slug") || "default";
+  const storageKey = `aertly-comments-${page}-${slug}`;
+  const supabaseConfig = window.AERTLY_SUPABASE || {};
+  const hasSupabaseConfig = Boolean(supabaseConfig.url && supabaseConfig.anonKey && window.supabase);
+  const tableName = supabaseConfig.table || "comments";
+  const supabaseClient = hasSupabaseConfig
+    ? window.supabase.createClient(supabaseConfig.url, supabaseConfig.anonKey)
+    : null;
+
+  function readComments() {
+    try {
+      return JSON.parse(localStorage.getItem(storageKey) || "[]");
+    } catch {
+      return [];
+    }
+  }
+
+  function writeComments(items) {
+    localStorage.setItem(storageKey, JSON.stringify(items));
+  }
+
+  function createCommentMarkup(comment) {
+    return `
+      <div class="comment-avatar-wrap">
+        <img class="comment-avatar" src="${comment.avatar}" alt="${comment.name}">
+      </div>
+      <div class="comment-body">
+        <div class="comment-head">
+          <strong>${comment.name}</strong>
+          <span>${comment.email}</span>
+          <time>${comment.createdAt}</time>
+        </div>
+        <p>${comment.body}</p>
+      </div>
+    `;
+  }
+
+  function renderComments(comments) {
+    list.innerHTML = "";
+
+    if (!comments.length) {
+      list.innerHTML = `<p class="comment-empty">还没有评论，来留下第一条吧。</p>`;
+      return;
+    }
+
+    comments.forEach((comment) => {
+      const article = document.createElement("article");
+      article.className = "comment-item";
+      article.innerHTML = createCommentMarkup(comment);
+      list.appendChild(article);
+    });
+  }
+
+  async function loadComments() {
+    if (!supabaseClient) {
+      renderComments(readComments());
+      return;
+    }
+
+    const { data, error } = await supabaseClient
+      .from(tableName)
+      .select("name,email,avatar,body,created_at")
+      .eq("entity_type", page)
+      .eq("entity_slug", slug)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      renderComments(readComments());
+      return;
+    }
+
+    const comments = (data || []).map((item) => ({
+      name: item.name,
+      email: item.email,
+      avatar: item.avatar || "./person.jpg",
+      body: item.body,
+      createdAt: new Date(item.created_at).toLocaleString("zh-CN")
+    }));
+    renderComments(comments);
+  }
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const name = byId("comment-name").value.trim();
+    const email = byId("comment-email").value.trim();
+    const avatarInput = byId("comment-avatar").value.trim();
+    const body = byId("comment-body").value.trim();
+
+    if (!name || !email || !body) {
+      return;
+    }
+
+    const comment = {
+      name,
+      email,
+      avatar: avatarInput || "./person.jpg",
+      body,
+      createdAt: new Date().toLocaleString("zh-CN")
+    };
+
+    if (supabaseClient) {
+      const { error } = await supabaseClient
+        .from(tableName)
+        .insert({
+          entity_type: page,
+          entity_slug: slug,
+          name,
+          email,
+          avatar: avatarInput || "./person.jpg",
+          body
+        });
+
+      if (!error) {
+        form.reset();
+        loadComments();
+        return;
+      }
+    }
+
+    const comments = readComments();
+    comments.unshift(comment);
+    writeComments(comments);
+    form.reset();
+    renderComments(comments);
+  });
+
+  loadComments();
+}
+
 function setActiveNav() {
   const page = document.body.dataset.page;
   document.querySelectorAll("[data-nav]").forEach((link) => {
@@ -345,6 +483,7 @@ function initPage() {
   setActiveNav();
   setupPetals();
   setupBgm();
+  setupComments();
   setupReveal();
 }
 
