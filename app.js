@@ -1,4 +1,4 @@
-const content = window.blogContent;
+﻿const content = window.blogContent;
 document.documentElement.classList.add("js-ready");
 
 function byId(id) {
@@ -30,20 +30,6 @@ function createPostCard(post, compact = false) {
   return article;
 }
 
-function createTopicCard(topic) {
-  const wrapper = document.createElement("article");
-  wrapper.className = "topic-item";
-  wrapper.setAttribute("data-reveal", "");
-  wrapper.innerHTML = `
-    <h3>${topic.name}</h3>
-    <p>${topic.description}</p>
-    <div class="topic-badges">
-      ${renderTags(topic.badges)}
-    </div>
-  `;
-  return wrapper;
-}
-
 function createProjectCard(project) {
   const wrapper = document.createElement("article");
   wrapper.className = "project-item";
@@ -63,7 +49,7 @@ function createProjectCard(project) {
 }
 
 function renderHome() {
-  return;
+  setupHomeStats();
 }
 
 function renderEssays() {
@@ -201,6 +187,104 @@ function renderNote() {
   related.forEach((item) => relatedList.appendChild(createProjectCard(item)));
 }
 
+function formatSiteUptime(startDateValue) {
+  const startDate = new Date(startDateValue);
+  if (Number.isNaN(startDate.getTime())) {
+    return "--";
+  }
+
+  const now = new Date();
+  const diffMs = Math.max(now.getTime() - startDate.getTime(), 0);
+  const totalDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (totalDays < 1) {
+    return "第 1 天";
+  }
+
+  return `第 ${totalDays + 1} 天`;
+}
+
+async function setupHomeStats() {
+  const viewsEl = byId("site-views");
+  const uptimeEl = byId("site-uptime");
+  if (!viewsEl && !uptimeEl) {
+    return;
+  }
+
+  const startDateValue = document.body.dataset.siteStart || "2026-04-05";
+  if (uptimeEl) {
+    uptimeEl.textContent = formatSiteUptime(startDateValue);
+  }
+
+  if (!viewsEl) {
+    return;
+  }
+
+  const storageCountKey = "aertly-home-views-count";
+  const sessionMarkKey = "aertly-home-viewed";
+  const supabaseConfig = window.AERTLY_SUPABASE || {};
+  const hasSupabaseConfig = Boolean(supabaseConfig.url && supabaseConfig.anonKey && window.supabase);
+  const pageViewsTable = supabaseConfig.pageViewsTable || "page_views";
+  const supabaseClient = hasSupabaseConfig
+    ? window.supabase.createClient(supabaseConfig.url, supabaseConfig.anonKey)
+    : null;
+
+  function readLocalViews() {
+    return Number(localStorage.getItem(storageCountKey) || "0");
+  }
+
+  function writeLocalViews(value) {
+    localStorage.setItem(storageCountKey, String(value));
+  }
+
+  function ensureLocalView() {
+    let count = readLocalViews();
+    if (sessionStorage.getItem(sessionMarkKey) !== "true") {
+      count += 1;
+      writeLocalViews(count);
+      sessionStorage.setItem(sessionMarkKey, "true");
+    }
+    return count;
+  }
+
+  async function syncRemoteViews() {
+    if (!supabaseClient) {
+      return null;
+    }
+
+    if (sessionStorage.getItem(sessionMarkKey) !== "true") {
+      const { error: insertError } = await supabaseClient
+        .from(pageViewsTable)
+        .insert({ page_key: "home" });
+
+      if (insertError) {
+        return null;
+      }
+
+      sessionStorage.setItem(sessionMarkKey, "true");
+    }
+
+    const { count, error: countError } = await supabaseClient
+      .from(pageViewsTable)
+      .select("*", { count: "exact", head: true })
+      .eq("page_key", "home");
+
+    if (countError) {
+      return null;
+    }
+
+    return count ?? 0;
+  }
+
+  const remoteViews = await syncRemoteViews();
+  if (remoteViews !== null) {
+    viewsEl.textContent = String(remoteViews);
+    return;
+  }
+
+  viewsEl.textContent = String(ensureLocalView());
+}
+
 function setupComments() {
   const form = byId("comment-form");
   const list = byId("comment-list");
@@ -251,7 +335,7 @@ function setupComments() {
     list.innerHTML = "";
 
     if (!comments.length) {
-      list.innerHTML = `<p class="comment-empty">还没有评论，来留下第一条吧。</p>`;
+      list.innerHTML = '<p class="comment-empty">还没有评论，来留下第一条吧。</p>';
       return;
     }
 

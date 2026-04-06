@@ -221,12 +221,15 @@ input {
   opacity: 1;
   transform: none;
   align-self: stretch;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 18px;
 }
 
 .scene-window {
   position: relative;
   width: 100%;
-  min-height: 100%;
+  min-height: 0;
   height: 100%;
   border-radius: 34px;
   overflow: hidden;
@@ -339,6 +342,38 @@ input {
   margin-top: 0;
   justify-items: center;
   align-content: center;
+}
+
+.hero-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(120px, 1fr));
+  gap: 14px;
+  width: 100%;
+}
+
+.hero-stat {
+  padding: 14px 16px 16px;
+  border-radius: 20px;
+  border: 1px solid rgba(127, 145, 170, 0.14);
+  background: linear-gradient(180deg, rgba(251, 253, 255, 0.84), rgba(242, 247, 252, 0.66));
+  box-shadow: 0 16px 34px rgba(91, 112, 142, 0.08);
+  text-align: center;
+}
+
+.hero-stat__label {
+  display: block;
+  color: var(--muted);
+  font-size: 0.82rem;
+  letter-spacing: 0.12em;
+}
+
+.hero-stat__value {
+  display: block;
+  margin-top: 10px;
+  font-family: "Noto Serif SC", serif;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--text);
 }
 
 .hero-nav-item {
@@ -1304,6 +1339,11 @@ input {
 
   .hero-nav-list {
     width: 100%;
+  }
+
+  .hero-stats {
+    width: 100%;
+    grid-template-columns: 1fr;
   }
 
   .petal {

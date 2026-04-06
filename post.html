@@ -1,10 +1,11 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>文章详情 | Aertly</title>
-  <meta name="description" content="Aertly 文章详情页。">
+  <meta name="description" content="Aertly 的文章详情页。">
+  <link rel="icon" href="./person.jpg" type="image/jpeg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
@@ -45,6 +46,7 @@
         <p class="reading-intro" id="post-intro"></p>
         <div class="post-tags reading-tags" id="post-tags"></div>
         <div id="post-content"></div>
+
         <section class="comment-section" data-reveal>
           <div class="section-heading compact">
             <p class="eyebrow">Comments</p>
@@ -55,7 +57,7 @@
               <input id="comment-name" type="text" placeholder="昵称" required>
               <input id="comment-email" type="email" placeholder="邮箱" required>
             </div>
-            <input id="comment-avatar" type="url" placeholder="头像链接（可填图片 URL）">
+            <input id="comment-avatar" type="url" placeholder="头像链接（可填写图片 URL）">
             <textarea id="comment-body" placeholder="写下你的评论..." rows="5" required></textarea>
             <button class="button primary" type="submit">发布评论</button>
           </form>
