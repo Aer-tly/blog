@@ -542,6 +542,146 @@ function setupBgm() {
   }
 }
 
+function loadExternalScript(src, marker) {
+  if (marker && window[marker]) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector(`script[data-src="${src}"]`);
+    if (existing) {
+      existing.addEventListener("load", () => resolve(), { once: true });
+      existing.addEventListener("error", () => reject(new Error(`Failed to load ${src}`)), { once: true });
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = src;
+    script.async = true;
+    script.dataset.src = src;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error(`Failed to load ${src}`));
+    document.head.appendChild(script);
+  });
+}
+
+async function setupLive2D() {
+  if (window.matchMedia("(max-width: 900px)").matches) {
+    return;
+  }
+
+  const shell = document.createElement("div");
+  shell.className = "live2d-shell";
+  shell.setAttribute("aria-hidden", "true");
+
+  const stage = document.createElement("div");
+  stage.className = "live2d-stage";
+  shell.appendChild(stage);
+
+  const status = document.createElement("div");
+  status.className = "live2d-status";
+  status.textContent = "Live2D 加载中";
+  stage.appendChild(status);
+
+  const toggle = document.createElement("button");
+  toggle.className = "live2d-toggle";
+  toggle.type = "button";
+  toggle.textContent = "隐藏";
+  toggle.setAttribute("aria-pressed", "false");
+  shell.appendChild(toggle);
+
+  document.body.appendChild(shell);
+
+  let targetX = 0;
+  let targetY = 0;
+  let currentX = 0;
+  let currentY = 0;
+
+  window.addEventListener("mousemove", (event) => {
+    const xRatio = event.clientX / window.innerWidth;
+    const yRatio = event.clientY / window.innerHeight;
+    targetX = (xRatio - 0.5) * 2;
+    targetY = (yRatio - 0.5) * 2;
+  });
+
+  function animateShell() {
+    currentX += (targetX - currentX) * 0.08;
+    currentY += (targetY - currentY) * 0.08;
+    requestAnimationFrame(animateShell);
+  }
+
+  requestAnimationFrame(animateShell);
+
+  toggle.addEventListener("click", () => {
+    const hidden = shell.classList.toggle("is-hidden");
+    toggle.textContent = hidden ? "显示" : "隐藏";
+    toggle.setAttribute("aria-pressed", hidden ? "true" : "false");
+  });
+
+  try {
+    await loadExternalScript("./vendor/pixi.min.js", "PIXI");
+    await loadExternalScript("./vendor/live2dcubismcore.min.js", "Live2DCubismCore");
+    await loadExternalScript("./vendor/pixi-live2d-cubism4.min.js");
+  } catch (error) {
+    status.textContent = `Live2D 依赖错误`;
+    status.title = error?.message || "";
+    return;
+  }
+
+  if (!window.PIXI || !window.PIXI.live2d || window.__AERTLY_LIVE2D_READY) {
+    status.textContent = "Live2D 运行库未就绪";
+    return;
+  }
+
+  window.__AERTLY_LIVE2D_READY = true;
+
+  const app = new window.PIXI.Application({
+    width: 280,
+    height: 420,
+    transparent: true,
+    antialias: true,
+    autoStart: true
+  });
+
+  stage.appendChild(app.view);
+
+  const { Live2DModel } = window.PIXI.live2d;
+  let model;
+  try {
+    model = await Live2DModel.from("./lian-model/lian0.model3.json");
+  } catch (error) {
+    status.textContent = "Live2D 模型错误";
+    status.title = error?.message || "";
+    return;
+  }
+  app.stage.addChild(model);
+  status.style.display = "none";
+
+  const scaleX = app.view.width / model.width;
+  const scaleY = app.view.height / model.height;
+  const scale = Math.min(scaleX, scaleY) * 0.9;
+  model.scale.set(scale);
+  model.x = app.view.width * 0.5;
+  model.y = app.view.height * 0.98;
+  model.anchor.set(0.5, 1);
+
+  const coreModel = model.internalModel?.coreModel;
+  const eyeBallXIndex = coreModel?.getParameterIndex?.("ParamEyeBallX");
+  const eyeBallYIndex = coreModel?.getParameterIndex?.("ParamEyeBallY");
+
+  app.ticker.add(() => {
+    if (coreModel && eyeBallXIndex >= 0 && eyeBallYIndex >= 0) {
+      coreModel.setParameterValueByIndex(eyeBallXIndex, currentX * 0.9);
+      coreModel.setParameterValueByIndex(eyeBallYIndex, currentY * -0.9);
+      return;
+    }
+
+    if (typeof model.focus === "function") {
+      model.focus(currentX * 0.35, -currentY * 0.35);
+    }
+  });
+}
+
 function initPage() {
   const page = document.body.dataset.page;
 
@@ -569,6 +709,7 @@ function initPage() {
   setupBgm();
   setupComments();
   setupReveal();
+  setupLive2D();
 }
 
 initPage();
