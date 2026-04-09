@@ -672,6 +672,12 @@ async function setupLive2D() {
   const eyeROpenIndex = coreModel?.getParameterIndex?.("ParamEyeROpen");
   const mouthOpenIndex = coreModel?.getParameterIndex?.("ParamMouthOpenY");
   const mouthFormIndex = coreModel?.getParameterIndex?.("ParamMouthForm");
+  const legRight1Index = coreModel?.getParameterIndex?.("Param_Angle_Rotation_1_leg_right_hdj");
+  const legRight2Index = coreModel?.getParameterIndex?.("Param_Angle_Rotation_2_leg_right_hdj");
+  const legRight3Index = coreModel?.getParameterIndex?.("Param_Angle_Rotation_3_leg_right_hdj");
+  const legLeft1Index = coreModel?.getParameterIndex?.("Param_Angle_Rotation_1_leg_left_hdj");
+  const legLeft2Index = coreModel?.getParameterIndex?.("Param_Angle_Rotation_2_leg_left_hdj");
+  const legLeft3Index = coreModel?.getParameterIndex?.("Param_Angle_Rotation_3_leg_left_hdj");
   const blinkState = {
     timer: 0,
     nextBlinkAt: performance.now() + 1800 + Math.random() * 2200,
@@ -699,6 +705,8 @@ async function setupLive2D() {
 
     const mouthIdle = 0.08 + (Math.sin(now / 380) + 1) * 0.035;
     const mouthForm = Math.sin(now / 900) * 0.12;
+    const legSway = Math.sin(now / 1100) * 0.08;
+    const legSwayAlt = Math.cos(now / 1400) * 0.05;
 
     if (coreModel && eyeBallXIndex >= 0 && eyeBallYIndex >= 0) {
       coreModel.setParameterValueByIndex(eyeBallXIndex, currentX * 0.9);
@@ -721,6 +729,30 @@ async function setupLive2D() {
 
     if (coreModel && mouthFormIndex >= 0) {
       coreModel.setParameterValueByIndex(mouthFormIndex, mouthForm);
+    }
+
+    if (coreModel && legRight1Index >= 0) {
+      coreModel.setParameterValueByIndex(legRight1Index, legSway);
+    }
+
+    if (coreModel && legRight2Index >= 0) {
+      coreModel.setParameterValueByIndex(legRight2Index, legSwayAlt);
+    }
+
+    if (coreModel && legRight3Index >= 0) {
+      coreModel.setParameterValueByIndex(legRight3Index, -legSway * 0.6);
+    }
+
+    if (coreModel && legLeft1Index >= 0) {
+      coreModel.setParameterValueByIndex(legLeft1Index, -legSway);
+    }
+
+    if (coreModel && legLeft2Index >= 0) {
+      coreModel.setParameterValueByIndex(legLeft2Index, -legSwayAlt);
+    }
+
+    if (coreModel && legLeft3Index >= 0) {
+      coreModel.setParameterValueByIndex(legLeft3Index, legSway * 0.6);
     }
   });
 }
