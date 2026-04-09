@@ -705,8 +705,8 @@ async function setupLive2D() {
 
     const mouthIdle = 0.08 + (Math.sin(now / 380) + 1) * 0.035;
     const mouthForm = Math.sin(now / 900) * 0.12;
-    const legSway = Math.sin(now / 1100) * 0.08;
-    const legSwayAlt = Math.cos(now / 1400) * 0.05;
+    const legSway = Math.sin(now / 950) * 0.16;
+    const legSwayAlt = Math.cos(now / 1250) * 0.1;
 
     if (coreModel && eyeBallXIndex >= 0 && eyeBallYIndex >= 0) {
       coreModel.setParameterValueByIndex(eyeBallXIndex, currentX * 0.9);
@@ -740,7 +740,7 @@ async function setupLive2D() {
     }
 
     if (coreModel && legRight3Index >= 0) {
-      coreModel.setParameterValueByIndex(legRight3Index, -legSway * 0.6);
+      coreModel.setParameterValueByIndex(legRight3Index, -legSway * 0.85);
     }
 
     if (coreModel && legLeft1Index >= 0) {
@@ -752,7 +752,7 @@ async function setupLive2D() {
     }
 
     if (coreModel && legLeft3Index >= 0) {
-      coreModel.setParameterValueByIndex(legLeft3Index, legSway * 0.6);
+      coreModel.setParameterValueByIndex(legLeft3Index, legSway * 0.85);
     }
   });
 }
