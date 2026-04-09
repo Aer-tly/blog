@@ -648,7 +648,7 @@ async function setupLive2D() {
   const { Live2DModel } = window.PIXI.live2d;
   let model;
   try {
-    model = await Live2DModel.from("./lian-model/lian0.model3.json");
+    model = await Live2DModel.from("./mx8xKuCZUAua/azuki-model/model.model3.json");                  //模型地址
   } catch (error) {
     status.textContent = "看板娘模型错误";
     status.title = error?.message || "";
@@ -672,12 +672,9 @@ async function setupLive2D() {
   const eyeROpenIndex = coreModel?.getParameterIndex?.("ParamEyeROpen");
   const mouthOpenIndex = coreModel?.getParameterIndex?.("ParamMouthOpenY");
   const mouthFormIndex = coreModel?.getParameterIndex?.("ParamMouthForm");
-  const legRight1Index = coreModel?.getParameterIndex?.("Param_Angle_Rotation_1_leg_right_hdj");
-  const legRight2Index = coreModel?.getParameterIndex?.("Param_Angle_Rotation_2_leg_right_hdj");
-  const legRight3Index = coreModel?.getParameterIndex?.("Param_Angle_Rotation_3_leg_right_hdj");
-  const legLeft1Index = coreModel?.getParameterIndex?.("Param_Angle_Rotation_1_leg_left_hdj");
-  const legLeft2Index = coreModel?.getParameterIndex?.("Param_Angle_Rotation_2_leg_left_hdj");
-  const legLeft3Index = coreModel?.getParameterIndex?.("Param_Angle_Rotation_3_leg_left_hdj");
+  const bodyAngleXIndex = coreModel?.getParameterIndex?.("ParamBodyAngleX");
+  const lowerBodyAngleXIndex = coreModel?.getParameterIndex?.("ParamBodyAngleX2");
+  const bodyAngleYIndex = coreModel?.getParameterIndex?.("ParamBodyAngleY");
   const blinkState = {
     timer: 0,
     nextBlinkAt: performance.now() + 1800 + Math.random() * 2200,
@@ -705,8 +702,8 @@ async function setupLive2D() {
 
     const mouthIdle = 0.08 + (Math.sin(now / 380) + 1) * 0.035;
     const mouthForm = Math.sin(now / 900) * 0.12;
-    const legSway = Math.sin(now / 950) * 0.16;
-    const legSwayAlt = Math.cos(now / 1250) * 0.1;
+    const bodySway = Math.sin(now / 1200) * 3.2;
+    const bodySwayAlt = Math.cos(now / 1550) * 1.4;
 
     if (coreModel && eyeBallXIndex >= 0 && eyeBallYIndex >= 0) {
       coreModel.setParameterValueByIndex(eyeBallXIndex, currentX * 0.9);
@@ -731,28 +728,16 @@ async function setupLive2D() {
       coreModel.setParameterValueByIndex(mouthFormIndex, mouthForm);
     }
 
-    if (coreModel && legRight1Index >= 0) {
-      coreModel.setParameterValueByIndex(legRight1Index, legSway);
+    if (coreModel && bodyAngleXIndex >= 0) {
+      coreModel.setParameterValueByIndex(bodyAngleXIndex, bodySway * 0.45);
     }
 
-    if (coreModel && legRight2Index >= 0) {
-      coreModel.setParameterValueByIndex(legRight2Index, legSwayAlt);
+    if (coreModel && lowerBodyAngleXIndex >= 0) {
+      coreModel.setParameterValueByIndex(lowerBodyAngleXIndex, bodySway);
     }
 
-    if (coreModel && legRight3Index >= 0) {
-      coreModel.setParameterValueByIndex(legRight3Index, -legSway * 0.85);
-    }
-
-    if (coreModel && legLeft1Index >= 0) {
-      coreModel.setParameterValueByIndex(legLeft1Index, -legSway);
-    }
-
-    if (coreModel && legLeft2Index >= 0) {
-      coreModel.setParameterValueByIndex(legLeft2Index, -legSwayAlt);
-    }
-
-    if (coreModel && legLeft3Index >= 0) {
-      coreModel.setParameterValueByIndex(legLeft3Index, legSway * 0.85);
+    if (coreModel && bodyAngleYIndex >= 0) {
+      coreModel.setParameterValueByIndex(bodyAngleYIndex, bodySwayAlt);
     }
   });
 }
