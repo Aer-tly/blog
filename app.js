@@ -580,7 +580,7 @@ async function setupLive2D() {
 
   const status = document.createElement("div");
   status.className = "live2d-status";
-  status.textContent = "Live2D 加载中";
+  status.textContent = "看板娘加载中";
   stage.appendChild(status);
 
   const toggle = document.createElement("button");
@@ -623,13 +623,13 @@ async function setupLive2D() {
     await loadExternalScript("./vendor/live2dcubismcore.min.js", "Live2DCubismCore");
     await loadExternalScript("./vendor/pixi-live2d-cubism4.min.js");
   } catch (error) {
-    status.textContent = `Live2D 依赖错误`;
+    status.textContent = "看板娘依赖错误";
     status.title = error?.message || "";
     return;
   }
 
   if (!window.PIXI || !window.PIXI.live2d || window.__AERTLY_LIVE2D_READY) {
-    status.textContent = "Live2D 运行库未就绪";
+    status.textContent = "看板娘运行库未就绪";
     return;
   }
 
@@ -650,7 +650,7 @@ async function setupLive2D() {
   try {
     model = await Live2DModel.from("./lian-model/lian0.model3.json");
   } catch (error) {
-    status.textContent = "Live2D 模型错误";
+    status.textContent = "看板娘模型错误";
     status.title = error?.message || "";
     return;
   }
