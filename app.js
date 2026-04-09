@@ -668,16 +668,59 @@ async function setupLive2D() {
   const coreModel = model.internalModel?.coreModel;
   const eyeBallXIndex = coreModel?.getParameterIndex?.("ParamEyeBallX");
   const eyeBallYIndex = coreModel?.getParameterIndex?.("ParamEyeBallY");
+  const eyeLOpenIndex = coreModel?.getParameterIndex?.("ParamEyeLOpen");
+  const eyeROpenIndex = coreModel?.getParameterIndex?.("ParamEyeROpen");
+  const mouthOpenIndex = coreModel?.getParameterIndex?.("ParamMouthOpenY");
+  const mouthFormIndex = coreModel?.getParameterIndex?.("ParamMouthForm");
+  const blinkState = {
+    timer: 0,
+    nextBlinkAt: performance.now() + 1800 + Math.random() * 2200,
+    progress: 1
+  };
 
   app.ticker.add(() => {
+    const now = performance.now();
+    const deltaMs = app.ticker.deltaMS || 16.67;
+
+    if (now >= blinkState.nextBlinkAt) {
+      blinkState.timer += deltaMs;
+      const cycle = 220;
+      const t = Math.min(blinkState.timer / cycle, 1);
+      blinkState.progress = t < 0.5 ? 1 - t * 2 : (t - 0.5) * 2;
+
+      if (t >= 1) {
+        blinkState.timer = 0;
+        blinkState.progress = 1;
+        blinkState.nextBlinkAt = now + 1800 + Math.random() * 2600;
+      }
+    } else {
+      blinkState.progress = 1;
+    }
+
+    const mouthIdle = 0.08 + (Math.sin(now / 380) + 1) * 0.035;
+    const mouthForm = Math.sin(now / 900) * 0.12;
+
     if (coreModel && eyeBallXIndex >= 0 && eyeBallYIndex >= 0) {
       coreModel.setParameterValueByIndex(eyeBallXIndex, currentX * 0.9);
       coreModel.setParameterValueByIndex(eyeBallYIndex, currentY * -0.9);
-      return;
+    } else if (typeof model.focus === "function") {
+      model.focus(currentX * 0.35, -currentY * 0.35);
     }
 
-    if (typeof model.focus === "function") {
-      model.focus(currentX * 0.35, -currentY * 0.35);
+    if (coreModel && eyeLOpenIndex >= 0) {
+      coreModel.setParameterValueByIndex(eyeLOpenIndex, blinkState.progress);
+    }
+
+    if (coreModel && eyeROpenIndex >= 0) {
+      coreModel.setParameterValueByIndex(eyeROpenIndex, blinkState.progress);
+    }
+
+    if (coreModel && mouthOpenIndex >= 0) {
+      coreModel.setParameterValueByIndex(mouthOpenIndex, mouthIdle);
+    }
+
+    if (coreModel && mouthFormIndex >= 0) {
+      coreModel.setParameterValueByIndex(mouthFormIndex, mouthForm);
     }
   });
 }
