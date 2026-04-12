@@ -1,6 +1,8 @@
 ﻿const content = window.blogContent;
 document.documentElement.classList.add("js-ready");
 
+const DEFAULT_COMMENT_AVATAR = "./default-avatar.svg";
+
 function byId(id) {
   return document.getElementById(id);
 }
@@ -368,7 +370,7 @@ function setupComments() {
     const comments = (data || []).map((item) => ({
       name: item.name,
       email: item.email,
-      avatar: item.avatar || "./person.jpg",
+      avatar: item.avatar || DEFAULT_COMMENT_AVATAR,
       body: item.body,
       createdAt: new Date(item.created_at).toLocaleString("zh-CN")
     }));
@@ -389,7 +391,7 @@ function setupComments() {
     const comment = {
       name,
       email,
-      avatar: avatarInput || "./person.jpg",
+      avatar: avatarInput || DEFAULT_COMMENT_AVATAR,
       body,
       createdAt: new Date().toLocaleString("zh-CN")
     };
@@ -402,7 +404,7 @@ function setupComments() {
           entity_slug: slug,
           name,
           email,
-          avatar: avatarInput || "./person.jpg",
+          avatar: avatarInput || DEFAULT_COMMENT_AVATAR,
           body
         });
 
@@ -570,6 +572,7 @@ async function setupLive2D() {
     return;
   }
 
+  const hiddenStateKey = "aertly-live2d-hidden";
   const shell = document.createElement("div");
   shell.className = "live2d-shell";
   shell.setAttribute("aria-hidden", "true");
@@ -589,6 +592,13 @@ async function setupLive2D() {
   toggle.textContent = "隐藏";
   toggle.setAttribute("aria-pressed", "false");
   shell.appendChild(toggle);
+
+  const hiddenByDefault = localStorage.getItem(hiddenStateKey) === "true";
+  if (hiddenByDefault) {
+    shell.classList.add("is-hidden");
+    toggle.textContent = "显示";
+    toggle.setAttribute("aria-pressed", "true");
+  }
 
   document.body.appendChild(shell);
 
@@ -616,6 +626,7 @@ async function setupLive2D() {
     const hidden = shell.classList.toggle("is-hidden");
     toggle.textContent = hidden ? "显示" : "隐藏";
     toggle.setAttribute("aria-pressed", hidden ? "true" : "false");
+    localStorage.setItem(hiddenStateKey, hidden ? "true" : "false");
   });
 
   try {
@@ -680,7 +691,6 @@ async function setupLive2D() {
     nextBlinkAt: performance.now() + 1800 + Math.random() * 2200,
     progress: 1
   };
-
   app.ticker.add(() => {
     const now = performance.now();
     const deltaMs = app.ticker.deltaMS || 16.67;
@@ -704,7 +714,6 @@ async function setupLive2D() {
     const mouthForm = Math.sin(now / 900) * 0.12;
     const bodySway = Math.sin(now / 1200) * 3.2;
     const bodySwayAlt = Math.cos(now / 1550) * 1.4;
-
     if (coreModel && eyeBallXIndex >= 0 && eyeBallYIndex >= 0) {
       coreModel.setParameterValueByIndex(eyeBallXIndex, currentX * 0.9);
       coreModel.setParameterValueByIndex(eyeBallYIndex, currentY * -0.9);

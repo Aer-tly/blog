@@ -59,15 +59,15 @@
     {
       // 笔记唯一标识
       // 会用于详情页链接：note.html?slug=spring-courtyard
-      slug: "spring-courtyard",
+      slug: "electrical-machine",
       // 笔记标题
-      title: "施工中",
+      title: "电机学",
       // 当前状态，比如：施工中 / 连载中 / 完结
-      status: "施工中",
+      status: "更新中",
       // 年份
       year: "2026",
       // 列表摘要
-      description: "施工中",
+      description: "记录复习过程中的笔记",
       // 列表补充说明
       detail: "施工中",
       // 详情页标题上方的小标题
@@ -98,8 +98,6 @@
     }
   ],
 
-  // 关于页内容
-  // about.html 会读取这里的字段来渲染个人介绍页
   about: {
     // 顶部日文引言
     motto: "まことに人生、一瞬の夢、ゴム風船の、美しさかな。",
