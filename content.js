@@ -119,7 +119,7 @@
       "施工中"
     ],
     // 第二部分标题
-    basicTitle: "基本信息",
+    basicTitle: "关于我",
     // 第二部分正文段落数组
     basicParagraphs: [
       "施工中",

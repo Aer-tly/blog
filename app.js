@@ -136,7 +136,7 @@ function renderPost() {
   const post = content.posts.find((item) => item.slug === slug) || content.posts[0];
   const related = content.posts.filter((item) => item.slug !== post.slug).slice(0, 3);
 
-  document.title = `${post.title} | ${content.site.title}`;
+  document.title = "Aertly";
 
   byId("post-kicker").textContent = post.kicker;
   byId("post-title").textContent = post.title;
@@ -166,7 +166,7 @@ function renderNote() {
   const note = content.projects.find((item) => item.slug === slug) || content.projects[0];
   const related = content.projects.filter((item) => item.slug !== note.slug).slice(0, 3);
 
-  document.title = `${note.title} | ${content.site.title}`;
+  document.title = "Aertly";
 
   byId("note-kicker").textContent = note.kicker;
   byId("note-title").textContent = note.title;
@@ -304,10 +304,110 @@ function setupComments() {
   const supabaseClient = hasSupabaseConfig
     ? window.supabase.createClient(supabaseConfig.url, supabaseConfig.anonKey)
     : null;
+  const replyPrefix = "[[AERTLY_REPLY]]";
+  const replySuffix = "[[/AERTLY_REPLY]]";
+  let replyTarget = null;
+  let renderedComments = [];
+  const submitButton = form.querySelector('button[type="submit"]');
+  const bodyInput = byId("comment-body");
+  const defaultBodyPlaceholder = bodyInput ? bodyInput.placeholder : "";
+
+  const replyingBar = document.createElement("div");
+  replyingBar.className = "comment-replying is-hidden";
+  form.insertBefore(replyingBar, form.firstChild);
+
+  function makeCommentId() {
+    if (window.crypto && typeof window.crypto.randomUUID === "function") {
+      return window.crypto.randomUUID();
+    }
+    return `cmt-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  }
+
+  function packCommentBody(rawBody, replyTo) {
+    if (!replyTo) {
+      return rawBody;
+    }
+    const payload = JSON.stringify({
+      id: replyTo.id,
+      name: replyTo.name
+    });
+    return `${replyPrefix}${payload}${replySuffix}${rawBody}`;
+  }
+
+  function unpackCommentBody(storedBody) {
+    if (typeof storedBody !== "string") {
+      return { body: "", replyTo: null };
+    }
+    if (!storedBody.startsWith(replyPrefix)) {
+      return { body: storedBody, replyTo: null };
+    }
+    const suffixIndex = storedBody.indexOf(replySuffix);
+    if (suffixIndex < 0) {
+      return { body: storedBody, replyTo: null };
+    }
+
+    const metadataRaw = storedBody.slice(replyPrefix.length, suffixIndex);
+    try {
+      const metadata = JSON.parse(metadataRaw);
+      return {
+        body: storedBody.slice(suffixIndex + replySuffix.length),
+        replyTo: metadata && metadata.id && metadata.name ? metadata : null
+      };
+    } catch {
+      return { body: storedBody, replyTo: null };
+    }
+  }
+
+  function setReplyTarget(comment) {
+    replyTarget = comment;
+    if (!comment) {
+      replyingBar.classList.add("is-hidden");
+      replyingBar.innerHTML = "";
+      if (bodyInput) {
+        bodyInput.placeholder = defaultBodyPlaceholder;
+      }
+      if (submitButton) {
+        submitButton.textContent = "发布评论";
+      }
+      return;
+    }
+    replyingBar.classList.remove("is-hidden");
+    replyingBar.innerHTML = `
+      <span>正在回复 <strong>${comment.name}</strong></span>
+      <button type="button" class="comment-reply-cancel">取消</button>
+    `;
+    if (bodyInput) {
+      bodyInput.placeholder = `回复 ${comment.name}...`;
+      bodyInput.focus();
+    }
+    if (submitButton) {
+      submitButton.textContent = "发送回复";
+    }
+  }
+
+  replyingBar.addEventListener("click", (event) => {
+    const cancelBtn = event.target.closest(".comment-reply-cancel");
+    if (!cancelBtn) {
+      return;
+    }
+    setReplyTarget(null);
+  });
 
   function readComments() {
     try {
-      return JSON.parse(localStorage.getItem(storageKey) || "[]");
+      const raw = JSON.parse(localStorage.getItem(storageKey) || "[]");
+      return raw.map((item) => {
+        const parsed = unpackCommentBody(item.body || "");
+        return {
+          id: item.id || makeCommentId(),
+          name: item.name,
+          email: item.email,
+          avatar: item.avatar || DEFAULT_COMMENT_AVATAR,
+          body: parsed.replyTo && !item.replyTo ? parsed.body : (item.body || ""),
+          replyTo: item.replyTo || parsed.replyTo || null,
+          createdAt: item.createdAt || new Date().toLocaleString("zh-CN")
+        };
+      });
     } catch {
       return [];
     }
@@ -318,6 +418,9 @@ function setupComments() {
   }
 
   function createCommentMarkup(comment) {
+    const replyRef = comment.replyTo
+      ? `<p class="comment-reply-ref">回复 ${comment.replyTo.name}</p>`
+      : "";
     return `
       <div class="comment-avatar-wrap">
         <img class="comment-avatar" src="${comment.avatar}" alt="${comment.name}">
@@ -328,26 +431,77 @@ function setupComments() {
           <span>${comment.email}</span>
           <time>${comment.createdAt}</time>
         </div>
+        ${replyRef}
         <p>${comment.body}</p>
+        <div class="comment-actions">
+          <button type="button" class="comment-reply-btn" data-reply-id="${comment.id}">回复</button>
+        </div>
       </div>
     `;
   }
 
+  function arrangeThread(comments) {
+    const byId = new Map();
+    const repliesByParent = new Map();
+    const rootComments = [];
+
+    comments.forEach((item) => {
+      byId.set(item.id, item);
+    });
+
+    comments.forEach((item) => {
+      const parentId = item.replyTo?.id;
+      if (!parentId || !byId.has(parentId)) {
+        rootComments.push(item);
+        return;
+      }
+      const bucket = repliesByParent.get(parentId) || [];
+      bucket.push(item);
+      repliesByParent.set(parentId, bucket);
+    });
+
+    const threaded = [];
+    rootComments.forEach((root) => {
+      threaded.push({ ...root, depth: 0 });
+      const replies = repliesByParent.get(root.id) || [];
+      replies.forEach((reply) => {
+        threaded.push({ ...reply, depth: 1 });
+      });
+    });
+
+    return threaded;
+  }
+
   function renderComments(comments) {
     list.innerHTML = "";
+    renderedComments = comments;
 
     if (!comments.length) {
       list.innerHTML = '<p class="comment-empty">还没有评论，来留下第一条吧。</p>';
       return;
     }
 
-    comments.forEach((comment) => {
+    const threadedComments = arrangeThread(comments);
+    threadedComments.forEach((comment) => {
       const article = document.createElement("article");
-      article.className = "comment-item";
+      article.className = comment.depth > 0 ? "comment-item is-reply" : "comment-item";
       article.innerHTML = createCommentMarkup(comment);
       list.appendChild(article);
     });
   }
+
+  list.addEventListener("click", (event) => {
+    const replyBtn = event.target.closest(".comment-reply-btn");
+    if (!replyBtn) {
+      return;
+    }
+    const targetId = replyBtn.dataset.replyId;
+    const target = renderedComments.find((item) => item.id === targetId);
+    if (!target) {
+      return;
+    }
+    setReplyTarget(target);
+  });
 
   async function loadComments() {
     if (!supabaseClient) {
@@ -357,7 +511,7 @@ function setupComments() {
 
     const { data, error } = await supabaseClient
       .from(tableName)
-      .select("name,email,avatar,body,created_at")
+      .select("id,name,email,avatar,body,created_at")
       .eq("entity_type", page)
       .eq("entity_slug", slug)
       .order("created_at", { ascending: false });
@@ -367,13 +521,18 @@ function setupComments() {
       return;
     }
 
-    const comments = (data || []).map((item) => ({
-      name: item.name,
-      email: item.email,
-      avatar: item.avatar || DEFAULT_COMMENT_AVATAR,
-      body: item.body,
-      createdAt: new Date(item.created_at).toLocaleString("zh-CN")
-    }));
+    const comments = (data || []).map((item) => {
+      const parsed = unpackCommentBody(item.body);
+      return {
+        id: item.id || makeCommentId(),
+        name: item.name,
+        email: item.email,
+        avatar: item.avatar || DEFAULT_COMMENT_AVATAR,
+        body: parsed.body,
+        replyTo: parsed.replyTo,
+        createdAt: new Date(item.created_at).toLocaleString("zh-CN")
+      };
+    });
     renderComments(comments);
   }
 
@@ -389,10 +548,12 @@ function setupComments() {
     }
 
     const comment = {
+      id: makeCommentId(),
       name,
       email,
       avatar: avatarInput || DEFAULT_COMMENT_AVATAR,
       body,
+      replyTo: replyTarget ? { id: replyTarget.id, name: replyTarget.name } : null,
       createdAt: new Date().toLocaleString("zh-CN")
     };
 
@@ -405,11 +566,12 @@ function setupComments() {
           name,
           email,
           avatar: avatarInput || DEFAULT_COMMENT_AVATAR,
-          body
+          body: packCommentBody(body, comment.replyTo)
         });
 
       if (!error) {
         form.reset();
+        setReplyTarget(null);
         loadComments();
         return;
       }
@@ -419,6 +581,7 @@ function setupComments() {
     comments.unshift(comment);
     writeComments(comments);
     form.reset();
+    setReplyTarget(null);
     renderComments(comments);
   });
 
