@@ -1,0 +1,567 @@
+{
+  "Version": 3,
+  "Type": 0,
+  "FileReferences": {
+    "Moc": "FileReferences_Moc_0.moc3",
+    "Textures": [
+      "FileReferences_Textures_0_0.png"
+    ],
+    "Physics": "FileReferences_Physics_0.json",
+    "PhysicsV2": {
+      "File": "FileReferences_Physics_0.json"
+    },
+    "Motions": {
+      "Idle#1": [
+        {
+          "Name": "idle_df",
+          "File": "motions/shimakaze_Idle#1_0.motion3.json",
+          "FileLoop": true,
+          "Interruptable": true,
+          "VarFloats": [
+            {
+              "Name": "idle1",
+              "Type": 1,
+              "Code": "equal 0"
+            },
+            {
+              "Name": "idle1",
+              "Type": 2,
+              "Code": "assign 1"
+            }
+          ]
+        },
+        {
+          "Name": "idle2",
+          "File": "motions/shimakaze_Idle#1_1.motion3.json",
+          "FileLoop": true,
+          "Interruptable": true,
+          "VarFloats": [
+            {
+              "Name": "idle1",
+              "Type": 1,
+              "Code": "equal 1"
+            },
+            {
+              "Name": "idle1",
+              "Type": 2,
+              "Code": "assign 2"
+            }
+          ]
+        },
+        {
+          "Name": "3",
+          "File": "motions/shimakaze_Idle#1_2.motion3.json",
+          "FileLoop": true,
+          "Interruptable": true,
+          "VarFloats": [
+            {
+              "Name": "idle1",
+              "Type": 1,
+              "Code": "equal 2"
+            },
+            {
+              "Name": "idle1",
+              "Type": 2,
+              "Code": "assign 0"
+            }
+          ]
+        }
+      ],
+      "cut": [
+        {
+          "Name": "洞",
+          "File": "motions/shimakaze_cut_0.motion3.json"
+        }
+      ],
+      "cut_hand": [
+        {
+          "Name": "hand_cut",
+          "File": "motions/shimakaze_cut_hand_0.motion3.json",
+          "VarFloats": [
+            {
+              "Name": "cut_hand",
+              "Type": 1,
+              "Code": "equal 0"
+            },
+            {
+              "Name": "cut_hand",
+              "Type": 2,
+              "Code": "assign 1"
+            }
+          ]
+        },
+        {
+          "Name": "hand_cut_re",
+          "File": "motions/shimakaze_cut_hand_1.motion3.json",
+          "VarFloats": [
+            {
+              "Name": "cut_hand",
+              "Type": 1,
+              "Code": "equal 1"
+            },
+            {
+              "Name": "cut_hand",
+              "Type": 2,
+              "Code": "assign 0"
+            }
+          ]
+        }
+      ],
+      "cut_qun": [
+        {
+          "Name": "qun_cut",
+          "File": "motions/shimakaze_cut_qun_0.motion3.json",
+          "VarFloats": [
+            {
+              "Name": "cut_qun",
+              "Type": 1,
+              "Code": "equal 0"
+            },
+            {
+              "Name": "cut_qun",
+              "Type": 2,
+              "Code": "assign 1"
+            }
+          ]
+        },
+        {
+          "Name": "qun_cut_re",
+          "File": "motions/shimakaze_cut_qun_1.motion3.json",
+          "VarFloats": [
+            {
+              "Name": "cut_qun",
+              "Type": 1,
+              "Code": "equal 1"
+            },
+            {
+              "Name": "cut_qun",
+              "Type": 2,
+              "Code": "assign 0"
+            }
+          ]
+        }
+      ],
+      "touch1#1": [
+        {
+          "Name": "1",
+          "File": "motions/shimakaze_touch1#1_0.motion3.json",
+          "Sound": "sounds/shimakaze_touch1#1_0.mp3",
+          "VarFloats": [
+            {
+              "Name": "touch1",
+              "Type": 1,
+              "Code": "equal 0"
+            },
+            {
+              "Name": "touch1",
+              "Type": 2,
+              "Code": "assign 1"
+            },
+            {
+              "Name": "idle1",
+              "Type": 2,
+              "Code": "assign 0"
+            }
+          ]
+        },
+        {
+          "Name": "2",
+          "File": "motions/shimakaze_touch1#1_1.motion3.json",
+          "Sound": "sounds/shimakaze_touch1#1_1.mp3",
+          "VarFloats": [
+            {
+              "Name": "touch1",
+              "Type": 1,
+              "Code": "equal 1"
+            },
+            {
+              "Name": "touch1",
+              "Type": 2,
+              "Code": "assign 0"
+            },
+            {
+              "Name": "idle1",
+              "Type": 2,
+              "Code": "assign 0"
+            }
+          ]
+        }
+      ],
+      "touch3#1": [
+        {
+          "Name": "1",
+          "File": "motions/shimakaze_touch3#1_0.motion3.json",
+          "Sound": "sounds/shimakaze_touch3#1_0.mp3",
+          "VarFloats": [
+            {
+              "Name": "touch3",
+              "Type": 1,
+              "Code": "equal 0"
+            },
+            {
+              "Name": "touch3",
+              "Type": 2,
+              "Code": "assign 1"
+            },
+            {
+              "Name": "idle1",
+              "Type": 2,
+              "Code": "assign 0"
+            }
+          ]
+        },
+        {
+          "Name": "2",
+          "File": "motions/shimakaze_touch3#1_1.motion3.json",
+          "Sound": "sounds/shimakaze_touch3#1_1.mp3",
+          "VarFloats": [
+            {
+              "Name": "touch3",
+              "Type": 1,
+              "Code": "equal 1"
+            },
+            {
+              "Name": "touch3",
+              "Type": 2,
+              "Code": "assign 0"
+            },
+            {
+              "Name": "idle1",
+              "Type": 2,
+              "Code": "assign 0"
+            }
+          ]
+        }
+      ],
+      "Idle": [
+        {
+          "Name": "1",
+          "File": "motions/shimakaze_Idle_0.motion3.json",
+          "FileLoop": true,
+          "Interruptable": true
+        }
+      ],
+      "touch2#1": [
+        {
+          "Name": "shimakaze",
+          "File": "motions/shimakaze_touch2#1_0.motion3.json",
+          "Sound": "sounds/shimakaze_touch2#1_0.mp3",
+          "VarFloats": [
+            {
+              "Name": "idle1",
+              "Type": 2,
+              "Code": "assign 1"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "Controllers": {
+    "ParamHit": {
+      "Items": [
+        {
+          "Name": "wa_r",
+          "Id": "Param3",
+          "HitArea": "wa_r",
+          "Axis": 1,
+          "Factor": 0.1,
+          "ReleaseType": 0,
+          "LockParam": true,
+          "LowPriority": true
+        },
+        {
+          "Name": "wa_l",
+          "Id": "Param7",
+          "HitArea": "wa_l",
+          "Axis": 1,
+          "Factor": 0.1,
+          "ReleaseType": 0,
+          "LockParam": true,
+          "LowPriority": true
+        },
+        {
+          "Name": "qun",
+          "Id": "Param162",
+          "HitArea": "qun",
+          "Axis": 0,
+          "Factor": -0.1,
+          "ReleaseType": 0,
+          "LowPriority": true,
+          "MaxMtn": "cut_qun"
+        }
+      ],
+      "Enabled": true
+    },
+    "ParamLoop": {},
+    "KeyTrigger": {},
+    "ParamTrigger": {},
+    "AreaTrigger": {},
+    "HandTrigger": {},
+    "EyeBlink": {
+      "MinInterval": 500,
+      "MaxInterval": 6000
+    },
+    "LipSync": {
+      "Gain": 5.0,
+      "Items": [
+        {
+          "Id": "Param127",
+          "Min": 0.0,
+          "Max": 1.0,
+          "Input": 0
+        }
+      ]
+    },
+    "MouseTracking": {
+      "SmoothTime": 0.1529762,
+      "Items": [
+        {
+          "Id": "Param53",
+          "BlendMode": 1,
+          "Input": 0
+        },
+        {
+          "Id": "Param54",
+          "BlendMode": 1,
+          "Axis": 1,
+          "Input": 0
+        },
+        {
+          "Id": "ParamAngleX",
+          "Min": -24.0,
+          "Max": 24.0,
+          "BlendMode": 1,
+          "Input": 0
+        },
+        {
+          "Id": "ParamAngleY",
+          "Min": -24.0,
+          "Max": 24.0,
+          "BlendMode": 1,
+          "Axis": 1,
+          "Input": 0
+        },
+        {
+          "Id": "Param13",
+          "Min": -24.0,
+          "Max": 24.0,
+          "BlendMode": 1,
+          "Input": 0
+        },
+        {
+          "Id": "Param15",
+          "Inverted": true,
+          "BlendMode": 1,
+          "Axis": 1,
+          "Input": 0
+        },
+        {
+          "Id": "Param27",
+          "Min": -18.0,
+          "Max": 18.0,
+          "BlendMode": 1,
+          "Input": 0
+        },
+        {
+          "Id": "Param26",
+          "Inverted": true,
+          "BlendMode": 1,
+          "Axis": 1,
+          "Input": 0
+        },
+        {
+          "Id": "Param14",
+          "Inverted": true,
+          "BlendMode": 1,
+          "Axis": 1,
+          "Input": 0
+        },
+        {
+          "Id": "Param",
+          "Min": -24.0,
+          "Max": 24.0,
+          "BlendMode": 1,
+          "Axis": 1,
+          "Input": 0
+        },
+        {
+          "Id": "Param5",
+          "Inverted": true,
+          "BlendMode": 1,
+          "Input": 0
+        },
+        {
+          "Id": "Param17",
+          "Inverted": true,
+          "BlendMode": 1,
+          "Axis": 1,
+          "Input": 0
+        },
+        {
+          "Id": "Param18",
+          "BlendMode": 1,
+          "Axis": 1,
+          "Input": 0
+        },
+        {
+          "Id": "Param19",
+          "BlendMode": 1,
+          "Input": 0
+        },
+        {
+          "Id": "Param20",
+          "Inverted": true,
+          "BlendMode": 1,
+          "Input": 0
+        },
+        {
+          "Id": "Param21",
+          "BlendMode": 1,
+          "Input": 0
+        },
+        {
+          "Id": "Param23",
+          "Min": -8.0,
+          "Max": 8.0,
+          "BlendMode": 1,
+          "Input": 0
+        },
+        {
+          "Id": "Param22",
+          "BlendMode": 1,
+          "Input": 0
+        },
+        {
+          "Id": "Param24",
+          "Min": -8.0,
+          "Max": 8.0,
+          "BlendMode": 1,
+          "Input": 0
+        },
+        {
+          "Id": "Param137",
+          "BlendMode": 1,
+          "Input": 0
+        },
+        {
+          "Id": "Param138",
+          "BlendMode": 1,
+          "Input": 0
+        },
+        {
+          "Id": "Param178",
+          "Min": -10.0,
+          "Max": 10.0,
+          "BlendMode": 1,
+          "Axis": 1,
+          "Input": 0
+        },
+        {
+          "Id": "Param184",
+          "BlendMode": 1,
+          "Axis": 1,
+          "Input": 0
+        },
+        {
+          "Id": "Param183",
+          "BlendMode": 1,
+          "Axis": 1,
+          "Input": 0
+        },
+        {
+          "Id": "Param210",
+          "Min": -15.0,
+          "Max": 15.0,
+          "BlendMode": 1,
+          "Axis": 1,
+          "Input": 0
+        },
+        {
+          "Id": "Param233",
+          "BlendMode": 1,
+          "Input": 0
+        },
+        {
+          "Id": "Param234",
+          "BlendMode": 1,
+          "Axis": 1,
+          "Input": 0
+        }
+      ],
+      "Enabled": true
+    },
+    "AutoBreath": {},
+    "ExtraMotion": {},
+    "Accelerometer": {
+      "Enabled": true
+    },
+    "Microphone": {},
+    "Transform": {},
+    "FaceTracking": {},
+    "HandTracking": {},
+    "ParamValue": {},
+    "PartOpacity": {},
+    "ArtmeshOpacity": {},
+    "ArtmeshColor": {},
+    "ArtmeshCulling": {
+      "DefaultMode": 0
+    },
+    "IntimacySystem": {}
+  },
+  "HitAreas": [
+    {
+      "Name": "Idle#1",
+      "Id": "lzpj2_head_1",
+      "Motion": "Idle#1"
+    },
+    {
+      "Name": "cut_hand",
+      "Id": "lzpj1_head_",
+      "Motion": "cut_hand"
+    },
+    {
+      "Name": "touch1#1",
+      "Id": "body_s5",
+      "Motion": "touch1#1"
+    },
+    {
+      "Name": "cut",
+      "Id": "ArtMesh11",
+      "Order": 1,
+      "Motion": "cut"
+    },
+    {
+      "Name": "wa_r",
+      "Id": "wa_r"
+    },
+    {
+      "Name": "wa_l",
+      "Id": "wa_l"
+    },
+    {
+      "Name": "touch2#1",
+      "Id": "ssf_b",
+      "Order": 1,
+      "Motion": "touch2#1"
+    },
+    {
+      "Name": "qun",
+      "Id": "qun_f_r"
+    },
+    {
+      "Name": "cut_qun",
+      "Id": "leg_r_3",
+      "Motion": "cut_qun"
+    },
+    {
+      "Name": "touch3#1",
+      "Id": "face_di",
+      "Motion": "touch3#1"
+    }
+  ],
+  "Options": {
+    "TexFixed": true,
+    "TexType": 0
+  }
+}

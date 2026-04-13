@@ -822,7 +822,7 @@ async function setupLive2D() {
   const { Live2DModel } = window.PIXI.live2d;
   let model;
   try {
-    model = await Live2DModel.from("./mx8xKuCZUAua/azuki-model/model.model3.json");                  //模型地址
+    model = await Live2DModel.from("./shimakaze-model/shimakaze.model3.json");                  //模型地址
   } catch (error) {
     status.textContent = "看板娘模型错误";
     status.title = error?.message || "";
@@ -838,6 +838,16 @@ async function setupLive2D() {
   model.x = app.view.width * 0.5;
   model.y = app.view.height * 0.98;
   model.anchor.set(0.5, 1);
+
+  app.view.addEventListener("click", (event) => {
+    if (typeof model.tap !== "function") {
+      return;
+    }
+    const rect = app.view.getBoundingClientRect();
+    const x = ((event.clientX - rect.left) / rect.width) * app.view.width;
+    const y = ((event.clientY - rect.top) / rect.height) * app.view.height;
+    model.tap(x, y);
+  });
 
   const coreModel = model.internalModel?.coreModel;
   const eyeBallXIndex = coreModel?.getParameterIndex?.("ParamEyeBallX");
