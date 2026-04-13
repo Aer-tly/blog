@@ -736,6 +736,28 @@ async function setupLive2D() {
   }
 
   const hiddenStateKey = "aertly-live2d-hidden";
+  const modelStateKey = "aertly-live2d-model";
+  const modelCatalog = [
+    {
+      id: "azuki",
+      name: "梓",
+      src: "./mx8xKuCZUAua/azuki-model/model.model3.json",
+      scaleFactor: 0.92
+    },
+    {
+      id: "lian",
+      name: "莲",
+      src: "./lian-model/lian0.model3.json",
+      scaleFactor: 0.94
+    },
+    {
+      id: "liang",
+      name: "凉",
+      src: "./liang/2.json",
+      scaleFactor: 0.96
+    }
+  ];
+  const modelIdSet = new Set(modelCatalog.map((item) => item.id));
   const shell = document.createElement("div");
   shell.className = "live2d-shell";
   shell.setAttribute("aria-hidden", "true");
@@ -755,6 +777,24 @@ async function setupLive2D() {
   toggle.textContent = "隐藏";
   toggle.setAttribute("aria-pressed", "false");
   shell.appendChild(toggle);
+
+  const switcher = document.createElement("div");
+  switcher.className = "live2d-switcher";
+
+  const prevButton = document.createElement("button");
+  prevButton.className = "live2d-switch-button";
+  prevButton.type = "button";
+  prevButton.textContent = "‹";
+  prevButton.title = "上一个模型";
+  switcher.appendChild(prevButton);
+
+  const nextButton = document.createElement("button");
+  nextButton.className = "live2d-switch-button";
+  nextButton.type = "button";
+  nextButton.textContent = "›";
+  nextButton.title = "下一个模型";
+  switcher.appendChild(nextButton);
+  shell.appendChild(switcher);
 
   const hiddenByDefault = localStorage.getItem(hiddenStateKey) === "true";
   if (hiddenByDefault) {
@@ -802,12 +842,10 @@ async function setupLive2D() {
     return;
   }
 
-  if (!window.PIXI || !window.PIXI.live2d || window.__AERTLY_LIVE2D_READY) {
+  if (!window.PIXI || !window.PIXI.live2d) {
     status.textContent = "看板娘运行库未就绪";
     return;
   }
-
-  window.__AERTLY_LIVE2D_READY = true;
 
   const app = new window.PIXI.Application({
     width: 280,
@@ -820,98 +858,287 @@ async function setupLive2D() {
   stage.appendChild(app.view);
 
   const { Live2DModel } = window.PIXI.live2d;
-  let model;
-  try {
-    model = await Live2DModel.from("./mx8xKuCZUAua/azuki-model/model.model3.json");                  //模型地址
-  } catch (error) {
-    status.textContent = "看板娘模型错误";
-    status.title = error?.message || "";
-    return;
+  let currentModel = null;
+  let currentModelId = localStorage.getItem(modelStateKey) || modelCatalog[0].id;
+  let frameUpdater = null;
+  let stageTapHandler = null;
+  let liangMotionConfig = null;
+  let liangAudio = null;
+
+  if (!modelIdSet.has(currentModelId)) {
+    currentModelId = modelCatalog[0].id;
   }
-  app.stage.addChild(model);
-  status.style.display = "none";
 
-  const scaleX = app.view.width / model.width;
-  const scaleY = app.view.height / model.height;
-  const scale = Math.min(scaleX, scaleY) * 0.9;
-  model.scale.set(scale);
-  model.x = app.view.width * 0.5;
-  model.y = app.view.height * 0.98;
-  model.anchor.set(0.5, 1);
+  function getModelIndexById(modelId) {
+    return modelCatalog.findIndex((item) => item.id === modelId);
+  }
 
-  const coreModel = model.internalModel?.coreModel;
-  const eyeBallXIndex = coreModel?.getParameterIndex?.("ParamEyeBallX");
-  const eyeBallYIndex = coreModel?.getParameterIndex?.("ParamEyeBallY");
-  const eyeLOpenIndex = coreModel?.getParameterIndex?.("ParamEyeLOpen");
-  const eyeROpenIndex = coreModel?.getParameterIndex?.("ParamEyeROpen");
-  const mouthOpenIndex = coreModel?.getParameterIndex?.("ParamMouthOpenY");
-  const mouthFormIndex = coreModel?.getParameterIndex?.("ParamMouthForm");
-  const bodyAngleXIndex = coreModel?.getParameterIndex?.("ParamBodyAngleX");
-  const lowerBodyAngleXIndex = coreModel?.getParameterIndex?.("ParamBodyAngleX2");
-  const bodyAngleYIndex = coreModel?.getParameterIndex?.("ParamBodyAngleY");
-  const blinkState = {
-    timer: 0,
-    nextBlinkAt: performance.now() + 1800 + Math.random() * 2200,
-    progress: 1
-  };
-  app.ticker.add(() => {
-    const now = performance.now();
-    const deltaMs = app.ticker.deltaMS || 16.67;
+  function getModelConfig(modelId) {
+    return modelCatalog.find((item) => item.id === modelId) || modelCatalog[0];
+  }
 
-    if (now >= blinkState.nextBlinkAt) {
-      blinkState.timer += deltaMs;
-      const cycle = 220;
-      const t = Math.min(blinkState.timer / cycle, 1);
-      blinkState.progress = t < 0.5 ? 1 - t * 2 : (t - 0.5) * 2;
+  function updateModelName() {
+    const current = getModelConfig(currentModelId);
+    prevButton.title = `上一个模型（当前：${current.name}）`;
+    nextButton.title = `下一个模型（当前：${current.name}）`;
+  }
 
-      if (t >= 1) {
-        blinkState.timer = 0;
-        blinkState.progress = 1;
-        blinkState.nextBlinkAt = now + 1800 + Math.random() * 2600;
+  function pickMotion(list) {
+    if (!Array.isArray(list) || !list.length) {
+      return null;
+    }
+    return list[Math.floor(Math.random() * list.length)];
+  }
+
+  async function readLiangMotionConfig() {
+    if (liangMotionConfig) {
+      return liangMotionConfig;
+    }
+    try {
+      const response = await fetch("./liang/2.json", { cache: "no-store" });
+      if (!response.ok) {
+        return null;
       }
-    } else {
-      blinkState.progress = 1;
+      const config = await response.json();
+      liangMotionConfig = config?.motions || null;
+      return liangMotionConfig;
+    } catch {
+      return null;
+    }
+  }
+
+  function stopLiangVoice() {
+    if (liangAudio) {
+      liangAudio.pause();
+      liangAudio.currentTime = 0;
+    }
+    liangAudio = null;
+  }
+
+  async function playLiangTapMotion(model, hitAreas) {
+    const motionMap = await readLiangMotionConfig();
+    if (!motionMap) {
+      return;
+    }
+    const hasHeadHit = hitAreas.includes("head");
+    const hasBodyHit = hitAreas.includes("body");
+    const group = hasHeadHit ? "tap_head" : (hasBodyHit ? "tap_body" : "shake");
+    const entries = motionMap[group] || motionMap.tap_head || motionMap.tap_body;
+    const chosen = pickMotion(entries);
+    if (!chosen) {
+      return;
     }
 
-    const mouthIdle = 0.08 + (Math.sin(now / 380) + 1) * 0.035;
-    const mouthForm = Math.sin(now / 900) * 0.12;
-    const bodySway = Math.sin(now / 1200) * 3.2;
-    const bodySwayAlt = Math.cos(now / 1550) * 1.4;
-    if (coreModel && eyeBallXIndex >= 0 && eyeBallYIndex >= 0) {
-      coreModel.setParameterValueByIndex(eyeBallXIndex, currentX * 0.9);
-      coreModel.setParameterValueByIndex(eyeBallYIndex, currentY * -0.9);
-    } else if (typeof model.focus === "function") {
-      model.focus(currentX * 0.35, -currentY * 0.35);
+    const groupEntries = motionMap[group];
+    const entryIndex = Array.isArray(groupEntries) ? groupEntries.indexOf(chosen) : -1;
+    if (typeof model.motion === "function") {
+      if (entryIndex >= 0) {
+        model.motion(group, entryIndex);
+      } else {
+        model.motion(group);
+      }
     }
 
-    if (coreModel && eyeLOpenIndex >= 0) {
-      coreModel.setParameterValueByIndex(eyeLOpenIndex, blinkState.progress);
+    if (chosen.sound) {
+      stopLiangVoice();
+      liangAudio = new Audio(`./liang/${chosen.sound}`);
+      liangAudio.volume = 0.78;
+      liangAudio.play().catch(() => {});
+    }
+  }
+
+  function bindModelTap(modelId, model) {
+    if (stageTapHandler) {
+      app.view.removeEventListener("click", stageTapHandler);
+      stageTapHandler = null;
     }
 
-    if (coreModel && eyeROpenIndex >= 0) {
-      coreModel.setParameterValueByIndex(eyeROpenIndex, blinkState.progress);
+    stageTapHandler = (event) => {
+      if (!currentModel || model !== currentModel) {
+        return;
+      }
+
+      const rect = app.view.getBoundingClientRect();
+      const x = ((event.clientX - rect.left) / rect.width) * app.view.width;
+      const y = ((event.clientY - rect.top) / rect.height) * app.view.height;
+      const hitAreas = typeof model.hitTest === "function" ? model.hitTest(x, y) : [];
+
+      if (modelId === "liang") {
+        playLiangTapMotion(model, hitAreas);
+        return;
+      }
+
+      if (typeof model.tap === "function") {
+        model.tap(x, y);
+      }
+    };
+
+    app.view.addEventListener("click", stageTapHandler);
+  }
+
+  function attachFrameUpdates(model) {
+    if (frameUpdater) {
+      app.ticker.remove(frameUpdater);
     }
 
-    if (coreModel && mouthOpenIndex >= 0) {
-      coreModel.setParameterValueByIndex(mouthOpenIndex, mouthIdle);
+    const coreModel = model.internalModel?.coreModel;
+    const eyeBallXIndex = coreModel?.getParameterIndex?.("ParamEyeBallX");
+    const eyeBallYIndex = coreModel?.getParameterIndex?.("ParamEyeBallY");
+    const eyeLOpenIndex = coreModel?.getParameterIndex?.("ParamEyeLOpen");
+    const eyeROpenIndex = coreModel?.getParameterIndex?.("ParamEyeROpen");
+    const mouthOpenIndex = coreModel?.getParameterIndex?.("ParamMouthOpenY");
+    const mouthFormIndex = coreModel?.getParameterIndex?.("ParamMouthForm");
+    const bodyAngleXIndex = coreModel?.getParameterIndex?.("ParamBodyAngleX");
+    const lowerBodyAngleXIndex = coreModel?.getParameterIndex?.("ParamBodyAngleX2");
+    const bodyAngleYIndex = coreModel?.getParameterIndex?.("ParamBodyAngleY");
+    const blinkState = {
+      timer: 0,
+      nextBlinkAt: performance.now() + 1800 + Math.random() * 2200,
+      progress: 1
+    };
+
+    frameUpdater = () => {
+      if (!currentModel || model !== currentModel) {
+        return;
+      }
+
+      const now = performance.now();
+      const deltaMs = app.ticker.deltaMS || 16.67;
+
+      if (now >= blinkState.nextBlinkAt) {
+        blinkState.timer += deltaMs;
+        const cycle = 220;
+        const t = Math.min(blinkState.timer / cycle, 1);
+        blinkState.progress = t < 0.5 ? 1 - t * 2 : (t - 0.5) * 2;
+
+        if (t >= 1) {
+          blinkState.timer = 0;
+          blinkState.progress = 1;
+          blinkState.nextBlinkAt = now + 1800 + Math.random() * 2600;
+        }
+      } else {
+        blinkState.progress = 1;
+      }
+
+      const mouthIdle = 0.08 + (Math.sin(now / 380) + 1) * 0.035;
+      const mouthForm = Math.sin(now / 900) * 0.12;
+      const bodySway = Math.sin(now / 1200) * 3.2;
+      const bodySwayAlt = Math.cos(now / 1550) * 1.4;
+      if (coreModel && eyeBallXIndex >= 0 && eyeBallYIndex >= 0) {
+        coreModel.setParameterValueByIndex(eyeBallXIndex, currentX * 0.9);
+        coreModel.setParameterValueByIndex(eyeBallYIndex, currentY * -0.9);
+      } else if (typeof model.focus === "function") {
+        model.focus(currentX * 0.35, -currentY * 0.35);
+      }
+
+      if (coreModel && eyeLOpenIndex >= 0) {
+        coreModel.setParameterValueByIndex(eyeLOpenIndex, blinkState.progress);
+      }
+
+      if (coreModel && eyeROpenIndex >= 0) {
+        coreModel.setParameterValueByIndex(eyeROpenIndex, blinkState.progress);
+      }
+
+      if (coreModel && mouthOpenIndex >= 0) {
+        coreModel.setParameterValueByIndex(mouthOpenIndex, mouthIdle);
+      }
+
+      if (coreModel && mouthFormIndex >= 0) {
+        coreModel.setParameterValueByIndex(mouthFormIndex, mouthForm);
+      }
+
+      if (coreModel && bodyAngleXIndex >= 0) {
+        coreModel.setParameterValueByIndex(bodyAngleXIndex, bodySway * 0.45);
+      }
+
+      if (coreModel && lowerBodyAngleXIndex >= 0) {
+        coreModel.setParameterValueByIndex(lowerBodyAngleXIndex, bodySway);
+      }
+
+      if (coreModel && bodyAngleYIndex >= 0) {
+        coreModel.setParameterValueByIndex(bodyAngleYIndex, bodySwayAlt);
+      }
+    };
+
+    app.ticker.add(frameUpdater);
+  }
+
+  function cleanupCurrentModel() {
+    if (frameUpdater) {
+      app.ticker.remove(frameUpdater);
+      frameUpdater = null;
     }
 
-    if (coreModel && mouthFormIndex >= 0) {
-      coreModel.setParameterValueByIndex(mouthFormIndex, mouthForm);
+    if (stageTapHandler) {
+      app.view.removeEventListener("click", stageTapHandler);
+      stageTapHandler = null;
     }
 
-    if (coreModel && bodyAngleXIndex >= 0) {
-      coreModel.setParameterValueByIndex(bodyAngleXIndex, bodySway * 0.45);
+    stopLiangVoice();
+
+    if (currentModel) {
+      app.stage.removeChild(currentModel);
+      if (typeof currentModel.destroy === "function") {
+        currentModel.destroy();
+      }
+      currentModel = null;
+    }
+  }
+
+  async function loadModelById(modelId) {
+    const config = getModelConfig(modelId);
+    status.style.display = "block";
+    status.textContent = "看板娘加载中";
+    status.title = "";
+
+    cleanupCurrentModel();
+
+    try {
+      currentModel = await Live2DModel.from(config.src);
+    } catch (error) {
+      status.textContent = "看板娘模型错误";
+      status.title = error?.message || "";
+      return;
     }
 
-    if (coreModel && lowerBodyAngleXIndex >= 0) {
-      coreModel.setParameterValueByIndex(lowerBodyAngleXIndex, bodySway);
-    }
+    app.stage.addChild(currentModel);
+    status.style.display = "none";
 
-    if (coreModel && bodyAngleYIndex >= 0) {
-      coreModel.setParameterValueByIndex(bodyAngleYIndex, bodySwayAlt);
+    const scaleX = app.view.width / currentModel.width;
+    const scaleY = app.view.height / currentModel.height;
+    const scale = Math.min(scaleX, scaleY) * config.scaleFactor;
+    currentModel.scale.set(scale);
+    currentModel.x = app.view.width * 0.5;
+    currentModel.y = app.view.height * 0.98;
+    currentModel.anchor.set(0.5, 1);
+
+    attachFrameUpdates(currentModel);
+    bindModelTap(modelId, currentModel);
+
+    if (typeof currentModel.motion === "function") {
+      currentModel.motion("idle").catch?.(() => {});
     }
+  }
+
+  async function switchModelByOffset(offset) {
+    const currentIndex = getModelIndexById(currentModelId);
+    const nextIndex = (currentIndex + offset + modelCatalog.length) % modelCatalog.length;
+    currentModelId = modelCatalog[nextIndex].id;
+    localStorage.setItem(modelStateKey, currentModelId);
+    updateModelName();
+    await loadModelById(currentModelId);
+  }
+
+  prevButton.addEventListener("click", () => {
+    switchModelByOffset(-1);
   });
+
+  nextButton.addEventListener("click", () => {
+    switchModelByOffset(1);
+  });
+
+  updateModelName();
+  await loadModelById(currentModelId);
 }
 
 function initPage() {
