@@ -817,6 +817,10 @@ async function setupLive2D() {
   const { Live2DModel } = PIXI.live2d;
   let model;
   const motionGroups = modelConfig?.FileReferences?.Motions || {};
+  const hitAreas = Array.isArray(modelConfig?.HitAreas) ? modelConfig.HitAreas : [];
+  const paramHitItems = Array.isArray(modelConfig?.Controllers?.ParamHit?.Items)
+    ? modelConfig.Controllers.ParamHit.Items
+    : [];
   const normalizedConfig = JSON.parse(JSON.stringify(modelConfig));
   const refs = normalizedConfig?.FileReferences || {};
   const normalizedMotions = refs?.Motions || {};
@@ -886,17 +890,60 @@ async function setupLive2D() {
   model.interactive = true;
   model.buttonMode = true;
 
-  const handleLive2DPointerDown = (event) => {
-    if (typeof model.tap !== "function") {
-      return;
+  const motionByHitKey = new Map();
+  hitAreas.forEach((area) => {
+    if (typeof area?.Name === "string" && typeof area?.Motion === "string") {
+      motionByHitKey.set(area.Name, area.Motion);
     }
+    if (typeof area?.Id === "string" && typeof area?.Motion === "string") {
+      motionByHitKey.set(area.Id, area.Motion);
+    }
+  });
+  paramHitItems.forEach((item) => {
+    if (typeof item?.HitArea === "string" && typeof item?.MaxMtn === "string") {
+      motionByHitKey.set(item.HitArea, item.MaxMtn);
+    }
+  });
+  const orderedAreaDefs = hitAreas
+    .map((area) => ({
+      name: typeof area?.Name === "string" ? area.Name : "",
+      id: typeof area?.Id === "string" ? area.Id : "",
+      order: Number.isFinite(Number(area?.Order)) ? Number(area.Order) : 0
+    }))
+    .sort((a, b) => b.order - a.order);
+
+  const handleLive2DPointerDown = (event) => {
     const rect = app.view.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) {
       return;
     }
     const x = (event.clientX - rect.left) * (app.view.width / rect.width);
     const y = (event.clientY - rect.top) * (app.view.height / rect.height);
-    model.tap(x, y);
+    let playedByHit = false;
+    if (typeof model.hitTest === "function" && typeof model.motion === "function") {
+      const hits = model.hitTest(x, y);
+      if (Array.isArray(hits) && hits.length) {
+        for (const area of orderedAreaDefs) {
+          if (!hits.includes(area.name) && !hits.includes(area.id)) {
+            continue;
+          }
+          const motionName = motionByHitKey.get(area.name) || motionByHitKey.get(area.id);
+          if (!motionName || !motionGroups[motionName]) {
+            continue;
+          }
+          try {
+            model.motion(motionName, undefined, 3);
+          } catch {
+            model.motion(motionName);
+          }
+          playedByHit = true;
+          break;
+        }
+      }
+    }
+    if (!playedByHit && typeof model.tap === "function") {
+      model.tap(x, y);
+    }
   };
 
   stage.addEventListener("pointerdown", handleLive2DPointerDown);
