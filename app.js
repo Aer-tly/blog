@@ -792,6 +792,8 @@ async function setupLive2D() {
   stage.appendChild(app.view);
 
   const modelConfigPath = "./shimakaze-model/shimakaze.model3.json";
+  const modelBasePath = modelConfigPath.slice(0, modelConfigPath.lastIndexOf("/") + 1);
+  const makeAssetUrl = (path) => `${modelBasePath}${encodeURI(path)}`;
   let modelConfig;
   try {
     const response = await fetch(modelConfigPath);
@@ -808,6 +810,40 @@ async function setupLive2D() {
   let model;
   const motionGroups = modelConfig?.FileReferences?.Motions || {};
   const hitAreas = modelConfig?.HitAreas || [];
+  const normalizedConfig = structuredClone(modelConfig);
+  const refs = normalizedConfig?.FileReferences || {};
+  const normalizedMotions = refs?.Motions || {};
+
+  if (typeof refs.Moc === "string") {
+    refs.Moc = makeAssetUrl(refs.Moc);
+  }
+  if (Array.isArray(refs.Textures)) {
+    refs.Textures = refs.Textures.map((item) => (typeof item === "string" ? makeAssetUrl(item) : item));
+  }
+  if (typeof refs.Physics === "string") {
+    refs.Physics = makeAssetUrl(refs.Physics);
+  }
+  if (refs.PhysicsV2 && typeof refs.PhysicsV2.File === "string") {
+    refs.PhysicsV2.File = makeAssetUrl(refs.PhysicsV2.File);
+  }
+  Object.values(normalizedMotions).forEach((group) => {
+    if (!Array.isArray(group)) {
+      return;
+    }
+    group.forEach((motion) => {
+      if (typeof motion?.File === "string") {
+        motion.File = makeAssetUrl(motion.File);
+      }
+      if (typeof motion?.Sound === "string") {
+        motion.Sound = makeAssetUrl(motion.Sound);
+      }
+    });
+  });
+
+  const normalizedConfigUrl = URL.createObjectURL(new Blob(
+    [JSON.stringify(normalizedConfig)],
+    { type: "application/json" }
+  ));
   const preferredIdleGroup = ["Idle#1", "Idle"].find((name) => Array.isArray(motionGroups[name]) && motionGroups[name].length > 0);
   const fallbackIdleGroup = Object.keys(motionGroups).find((name) => {
     const group = motionGroups[name];
@@ -816,14 +852,16 @@ async function setupLive2D() {
   const idleMotionGroup = preferredIdleGroup || fallbackIdleGroup;
 
   try {
-    model = await Live2DModel.from(modelConfigPath, {
+    model = await Live2DModel.from(normalizedConfigUrl, {
       idleMotionGroup,
       autoInteract: hitAreas.some((area) => typeof area?.Motion === "string" && area.Motion.length > 0)
     });
   } catch (error) {
+    URL.revokeObjectURL(normalizedConfigUrl);
     status.textContent = "模型加载失败";
     return;
   }
+  URL.revokeObjectURL(normalizedConfigUrl);
 
   app.stage.addChild(model);
   status.style.display = "none";
@@ -840,6 +878,11 @@ async function setupLive2D() {
   
   updateLayout();
   model.on("load", updateLayout);
+
+  app.view.addEventListener("click", (event) => {
+    const rect = app.view.getBoundingClientRect();
+    model.tap(event.clientX - rect.left, event.clientY - rect.top);
+  });
 }
 
 function initPage() {
