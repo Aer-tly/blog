@@ -890,6 +890,20 @@ async function setupLive2D() {
   model.interactive = true;
   model.buttonMode = true;
 
+  const motionByHitKey = new Map();
+  hitAreas.forEach((area) => {
+    if (typeof area?.Name === "string" && typeof area?.Motion === "string") {
+      motionByHitKey.set(area.Name, area.Motion);
+    }
+    if (typeof area?.Id === "string" && typeof area?.Motion === "string") {
+      motionByHitKey.set(area.Id, area.Motion);
+    }
+  });
+  paramHitItems.forEach((item) => {
+    if (typeof item?.HitArea === "string" && typeof item?.MaxMtn === "string") {
+      motionByHitKey.set(item.HitArea, item.MaxMtn);
+    }
+  });
   const orderedAreaDefs = hitAreas
     .map((area) => ({
       name: typeof area?.Name === "string" ? area.Name : "",
@@ -977,7 +991,7 @@ async function setupLive2D() {
     return 1;
   };
   let sockDrag = null;
-  let qunIsCut = false;
+  let lastQunCutAt = 0;
 
   const handleLive2DPointerDown = (event) => {
     const rect = app.view.getBoundingClientRect();
@@ -1011,18 +1025,27 @@ async function setupLive2D() {
             };
           }
         }
-        const hasCutQunHit = hits.some((hit) => hit === "cut_qun" || hit === "qun" || hit === "qun_f_r");
-        const hasLeftSockHit = hits.some((hit) => hit === "wa_l");
-        if (hasCutQunHit || (qunIsCut && hasLeftSockHit)) {
-          if (typeof model.motion === "function" && motionGroups.cut_qun) {
-            try {
-              model.motion("cut_qun", qunIsCut ? 1 : 0, 3);
-            } catch {
-              model.motion("cut_qun");
-            }
-            qunIsCut = !qunIsCut;
-            return;
+        for (const area of orderedAreaDefs) {
+          if (!hits.includes(area.name) && !hits.includes(area.id)) {
+            continue;
           }
+          const motionName = motionByHitKey.get(area.name) || motionByHitKey.get(area.id);
+          if (!motionName || !motionGroups[motionName] || typeof model.motion !== "function") {
+            continue;
+          }
+          if (motionName === "cut_qun") {
+            const now = Date.now();
+            if (now - lastQunCutAt < 420) {
+              return;
+            }
+            lastQunCutAt = now;
+          }
+          try {
+            model.motion(motionName, undefined, 3);
+          } catch {
+            model.motion(motionName);
+          }
+          return;
         }
       }
     }
@@ -1049,18 +1072,7 @@ async function setupLive2D() {
     sockDrag = null;
   };
 
-  stage.addEventListener("pointerdown", handleLive2DPointerDown);
   app.view.addEventListener("pointerdown", handleLive2DPointerDown);
-  app.view.addEventListener("pointerdown", (event) => {
-    if (typeof app.view.setPointerCapture === "function" && typeof event.pointerId === "number") {
-      try {
-        app.view.setPointerCapture(event.pointerId);
-      } catch {
-        // ignore unsupported pointer capture edge cases
-      }
-    }
-  });
-  stage.addEventListener("pointermove", handleLive2DPointerMove);
   app.view.addEventListener("pointermove", handleLive2DPointerMove);
   window.addEventListener("pointerup", clearSockDrag);
   window.addEventListener("pointercancel", clearSockDrag);
