@@ -859,7 +859,7 @@ async function setupLive2D() {
   try {
     model = await Live2DModel.from(normalizedConfigUrl, {
       idleMotionGroup,
-      autoInteract: hitAreas.some((area) => typeof area?.Motion === "string" && area.Motion.length > 0)
+      autoInteract: false
     });
   } catch (error) {
     status.textContent = "模型加载失败";
@@ -882,9 +882,27 @@ async function setupLive2D() {
   updateLayout();
   model.on("load", updateLayout);
 
+  const hitAreasWithMotion = hitAreas
+    .filter((area) => typeof area?.Name === "string" && typeof area?.Motion === "string")
+    .sort((a, b) => (Number(b.Order) || 0) - (Number(a.Order) || 0));
+
   app.view.addEventListener("click", (event) => {
     const rect = app.view.getBoundingClientRect();
-    model.tap(event.clientX - rect.left, event.clientY - rect.top);
+    const x = (event.clientX - rect.left) * (app.view.width / rect.width);
+    const y = (event.clientY - rect.top) * (app.view.height / rect.height);
+
+    for (const area of hitAreasWithMotion) {
+      if (typeof model.hitTest === "function" && model.hitTest(area.Name, x, y)) {
+        if (typeof model.motion === "function") {
+          model.motion(area.Motion);
+          return;
+        }
+      }
+    }
+
+    if (typeof model.tap === "function") {
+      model.tap(x, y);
+    }
   });
 }
 
