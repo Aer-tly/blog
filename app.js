@@ -886,34 +886,20 @@ async function setupLive2D() {
   model.interactive = true;
   model.buttonMode = true;
 
-  const mapPointerToModelPoint = (event) => {
-    const point = new PIXI.Point();
-    if (app.renderer.events && typeof app.renderer.events.mapPositionToPoint === "function") {
-      app.renderer.events.mapPositionToPoint(point, event.clientX, event.clientY);
-      return point;
-    }
-    if (app.renderer.plugins?.interaction && typeof app.renderer.plugins.interaction.mapPositionToPoint === "function") {
-      app.renderer.plugins.interaction.mapPositionToPoint(point, event.clientX, event.clientY);
-      return point;
-    }
-    return null;
-  };
-
   const handleLive2DPointerDown = (event) => {
     if (typeof model.tap !== "function") {
       return;
     }
-    const point = mapPointerToModelPoint(event);
-    if (point) {
-      model.tap(point.x, point.y);
+    const rect = app.view.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) {
       return;
     }
-    const rect = app.view.getBoundingClientRect();
     const x = (event.clientX - rect.left) * (app.view.width / rect.width);
     const y = (event.clientY - rect.top) * (app.view.height / rect.height);
     model.tap(x, y);
   };
 
+  stage.addEventListener("pointerdown", handleLive2DPointerDown);
   app.view.addEventListener("pointerdown", handleLive2DPointerDown);
 }
 
