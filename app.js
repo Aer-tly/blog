@@ -777,13 +777,12 @@ async function setupLive2D() {
     targetY = (yRatio - 0.5) * 2;
   });
 
-  function animateShell() {
+  function animateMovement() {
     currentX += (targetX - currentX) * 0.08;
     currentY += (targetY - currentY) * 0.08;
-    requestAnimationFrame(animateShell);
+    requestAnimationFrame(animateMovement);
   }
-
-  requestAnimationFrame(animateShell);
+  animateMovement();
 
   toggle.addEventListener("click", () => {
     const hidden = shell.classList.toggle("is-hidden");
@@ -822,7 +821,7 @@ async function setupLive2D() {
   const { Live2DModel } = window.PIXI.live2d;
   let model;
   try {
-    model = await Live2DModel.from("./shimakaze-model/shimakaze.model3.json");                  //模型地址
+    model = await Live2DModel.from("./shimakaze-model/shimakaze.model3.json", { idleMotionGroup: "Idle#1" });
   } catch (error) {
     status.textContent = "看板娘模型错误";
     status.title = error?.message || "";
@@ -849,80 +848,13 @@ async function setupLive2D() {
     model.tap(x, y);
   });
 
-  // 注释掉手动控制模型参数的逻辑，让模型使用其自带的动画系统
-  // const coreModel = model.internalModel?.coreModel;
-  // const eyeBallXIndex = coreModel?.getParameterIndex?.("ParamEyeBallX");
-  // const eyeBallYIndex = coreModel?.getParameterIndex?.("ParamEyeBallY");
-  // const eyeLOpenIndex = coreModel?.getParameterIndex?.("ParamEyeLOpen");
-  // const eyeROpenIndex = coreModel?.getParameterIndex?.("ParamEyeROpen");
-  // const mouthOpenIndex = coreModel?.getParameterIndex?.("ParamMouthOpenY");
-  // const mouthFormIndex = coreModel?.getParameterIndex?.("ParamMouthForm");
-  // const bodyAngleXIndex = coreModel?.getParameterIndex?.("ParamBodyAngleX");
-  // const lowerBodyAngleXIndex = coreModel?.getParameterIndex?.("ParamBodyAngleX2");
-  // const bodyAngleYIndex = coreModel?.getParameterIndex?.("ParamBodyAngleY");
-  // const blinkState = {
-  //   timer: 0,
-  //   nextBlinkAt: performance.now() + 1800 + Math.random() * 2200,
-  //   progress: 1
-  // };
-  // app.ticker.add(() => {
-  //   const now = performance.now();
-  //   const deltaMs = app.ticker.deltaMS || 16.67;
-
-  //   if (now >= blinkState.nextBlinkAt) {
-  //     blinkState.timer += deltaMs;
-  //     const cycle = 220;
-  //     const t = Math.min(blinkState.timer / cycle, 1);
-  //     blinkState.progress = t < 0.5 ? 1 - t * 2 : (t - 0.5) * 2;
-
-  //     if (t >= 1) {
-  //       blinkState.timer = 0;
-  //       blinkState.progress = 1;
-  //       blinkState.nextBlinkAt = now + 1800 + Math.random() * 2600;
-  //     }
-  //   } else {
-  //     blinkState.progress = 1;
-  //   }
-
-  //   const mouthIdle = 0.08 + (Math.sin(now / 380) + 1) * 0.035;
-  //   const mouthForm = Math.sin(now / 900) * 0.12;
-  //   const bodySway = Math.sin(now / 1200) * 3.2;
-  //   const bodySwayAlt = Math.cos(now / 1550) * 1.4;
-  //   if (coreModel && eyeBallXIndex >= 0 && eyeBallYIndex >= 0) {
-  //     coreModel.setParameterValueByIndex(eyeBallXIndex, currentX * 0.9);
-  //     coreModel.setParameterValueByIndex(eyeBallYIndex, currentY * -0.9);
-  //   } else if (typeof model.focus === "function") {
-  //     model.focus(currentX * 0.35, -currentY * 0.35);
-  //   }
-
-  //   if (coreModel && eyeLOpenIndex >= 0) {
-  //     coreModel.setParameterValueByIndex(eyeLOpenIndex, blinkState.progress);
-  //   }
-
-  //   if (coreModel && eyeROpenIndex >= 0) {
-  //     coreModel.setParameterValueByIndex(eyeROpenIndex, blinkState.progress);
-  //   }
-
-  //   if (coreModel && mouthOpenIndex >= 0) {
-  //     coreModel.setParameterValueByIndex(mouthOpenIndex, mouthIdle);
-  //   }
-
-  //   if (coreModel && mouthFormIndex >= 0) {
-  //     coreModel.setParameterValueByIndex(mouthFormIndex, mouthForm);
-  //   }
-
-  //   if (coreModel && bodyAngleXIndex >= 0) {
-  //     coreModel.setParameterValueByIndex(bodyAngleXIndex, bodySway * 0.45);
-  //   }
-
-  //   if (coreModel && lowerBodyAngleXIndex >= 0) {
-  //     coreModel.setParameterValueByIndex(lowerBodyAngleXIndex, bodySway);
-  //   }
-
-  //   if (coreModel && bodyAngleYIndex >= 0) {
-  //     coreModel.setParameterValueByIndex(bodyAngleYIndex, bodySwayAlt);
-  //   }
-  // });
+  // 恢复 ticker，用于鼠标跟随，但不使用可能会冲突的手动参数设置
+  app.ticker.add(() => {
+    if (model && typeof model.focus === "function") {
+      // 鼠标跟随：使用 Live2D 提供的标准 focus 方法，它会自动与原生动画融合
+      model.focus(currentX, -currentY);
+    }
+  });
 }
 
 function initPage() {
