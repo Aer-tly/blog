@@ -739,9 +739,11 @@ async function setupLive2D() {
   const shell = document.createElement("div");
   shell.className = "live2d-shell";
   shell.setAttribute("aria-hidden", "true");
+  shell.style.pointerEvents = "auto";
 
   const stage = document.createElement("div");
   stage.className = "live2d-stage";
+  stage.style.pointerEvents = "auto";
   shell.appendChild(stage);
 
   const status = document.createElement("div");
@@ -789,6 +791,7 @@ async function setupLive2D() {
     antialias: true,
     autoStart: true
   });
+  app.view.style.pointerEvents = "auto";
   stage.appendChild(app.view);
 
   const modelConfigPath = "./shimakaze-model/shimakaze.model3.json";
