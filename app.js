@@ -890,20 +890,6 @@ async function setupLive2D() {
   model.interactive = true;
   model.buttonMode = true;
 
-  const motionByHitKey = new Map();
-  hitAreas.forEach((area) => {
-    if (typeof area?.Name === "string" && typeof area?.Motion === "string") {
-      motionByHitKey.set(area.Name, area.Motion);
-    }
-    if (typeof area?.Id === "string" && typeof area?.Motion === "string") {
-      motionByHitKey.set(area.Id, area.Motion);
-    }
-  });
-  paramHitItems.forEach((item) => {
-    if (typeof item?.HitArea === "string" && typeof item?.MaxMtn === "string") {
-      motionByHitKey.set(item.HitArea, item.MaxMtn);
-    }
-  });
   const orderedAreaDefs = hitAreas
     .map((area) => ({
       name: typeof area?.Name === "string" ? area.Name : "",
@@ -918,6 +904,35 @@ async function setupLive2D() {
     }
   });
   const coreModel = model.internalModel?.coreModel;
+  const readParamValueById = (id) => {
+    if (!coreModel || typeof id !== "string") {
+      return 0;
+    }
+    if (typeof coreModel.getParameterValueById === "function") {
+      return coreModel.getParameterValueById(id);
+    }
+    const index = getParamIndex(id);
+    return readParamValue(index);
+  };
+  const writeParamValueById = (id, value) => {
+    if (!coreModel || typeof id !== "string") {
+      return;
+    }
+    if (typeof coreModel.setParameterValueById === "function") {
+      coreModel.setParameterValueById(id, value, 1);
+      return;
+    }
+    const index = getParamIndex(id);
+    writeParamValue(index, value);
+  };
+  const readParamMinById = (id) => {
+    const index = getParamIndex(id);
+    return readParamMin(index);
+  };
+  const readParamMaxById = (id) => {
+    const index = getParamIndex(id);
+    return readParamMax(index);
+  };
   const getParamIndex = (id) => {
     if (!coreModel || typeof id !== "string") {
       return -1;
@@ -1014,36 +1029,40 @@ async function setupLive2D() {
           const paramIndex = getParamIndex(paramHit?.Id);
           if (paramIndex >= 0) {
             sockDrag = {
+              id: paramHit.Id,
               axis: Number(paramHit?.Axis) || 0,
               factor: Number(paramHit?.Factor) || 0.1,
               startX: x,
               startY: y,
-              startValue: readParamValue(paramIndex),
-              min: readParamMin(paramIndex),
-              max: readParamMax(paramIndex),
-              index: paramIndex
+              startValue: readParamValueById(paramHit.Id),
+              min: readParamMinById(paramHit.Id),
+              max: readParamMaxById(paramHit.Id)
             };
+            if (typeof event.pointerId === "number" && typeof app.view.setPointerCapture === "function") {
+              try {
+                app.view.setPointerCapture(event.pointerId);
+              } catch {
+                // ignore capture failures
+              }
+            }
           }
         }
         for (const area of orderedAreaDefs) {
           if (!hits.includes(area.name) && !hits.includes(area.id)) {
             continue;
           }
-          const motionName = motionByHitKey.get(area.name) || motionByHitKey.get(area.id);
-          if (!motionName || !motionGroups[motionName] || typeof model.motion !== "function") {
-            continue;
-          }
-          if (motionName === "cut_qun") {
+          const isQunRelated = area.name === "cut_qun" || area.name === "qun" || area.id === "qun_f_r" || area.id === "leg_r_3";
+          if (isQunRelated && typeof model.motion === "function" && motionGroups.cut_qun) {
             const now = Date.now();
             if (now - lastQunCutAt < 420) {
               return;
             }
             lastQunCutAt = now;
-          }
-          try {
-            model.motion(motionName, undefined, 3);
-          } catch {
-            model.motion(motionName);
+            try {
+              model.motion("cut_qun", undefined, 3);
+            } catch {
+              model.motion("cut_qun");
+            }
           }
           return;
         }
@@ -1066,7 +1085,7 @@ async function setupLive2D() {
     const delta = sockDrag.axis === 1 ? (y - sockDrag.startY) : (x - sockDrag.startX);
     const target = sockDrag.startValue + delta * sockDrag.factor;
     const clamped = Math.max(sockDrag.min, Math.min(sockDrag.max, target));
-    writeParamValue(sockDrag.index, clamped);
+    writeParamValueById(sockDrag.id, clamped);
   };
   const clearSockDrag = () => {
     sockDrag = null;
