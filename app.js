@@ -753,41 +753,19 @@ async function setupLive2D() {
   toggle.className = "live2d-toggle";
   toggle.type = "button";
   toggle.textContent = "隐藏";
-  toggle.setAttribute("aria-pressed", "false");
   shell.appendChild(toggle);
 
-  const hiddenByDefault = localStorage.getItem(hiddenStateKey) === "true";
-  if (hiddenByDefault) {
+  const isHidden = localStorage.getItem(hiddenStateKey) === "true";
+  if (isHidden) {
     shell.classList.add("is-hidden");
     toggle.textContent = "显示";
-    toggle.setAttribute("aria-pressed", "true");
   }
 
   document.body.appendChild(shell);
 
-  let targetX = 0;
-  let targetY = 0;
-  let currentX = 0;
-  let currentY = 0;
-
-  window.addEventListener("mousemove", (event) => {
-    const xRatio = event.clientX / window.innerWidth;
-    const yRatio = event.clientY / window.innerHeight;
-    targetX = (xRatio - 0.5) * 2;
-    targetY = (yRatio - 0.5) * 2;
-  });
-
-  function animateMovement() {
-    currentX += (targetX - currentX) * 0.08;
-    currentY += (targetY - currentY) * 0.08;
-    requestAnimationFrame(animateMovement);
-  }
-  animateMovement();
-
   toggle.addEventListener("click", () => {
     const hidden = shell.classList.toggle("is-hidden");
     toggle.textContent = hidden ? "显示" : "隐藏";
-    toggle.setAttribute("aria-pressed", hidden ? "true" : "false");
     localStorage.setItem(hiddenStateKey, hidden ? "true" : "false");
   });
 
@@ -796,64 +774,72 @@ async function setupLive2D() {
     await loadExternalScript("./vendor/live2dcubismcore.min.js", "Live2DCubismCore");
     await loadExternalScript("./vendor/pixi-live2d-cubism4.min.js");
   } catch (error) {
-    status.textContent = "看板娘依赖错误";
-    status.title = error?.message || "";
+    status.textContent = "依赖加载失败";
     return;
   }
 
-  if (!window.PIXI || !window.PIXI.live2d || window.__AERTLY_LIVE2D_READY) {
-    status.textContent = "看板娘运行库未就绪";
+  if (!window.PIXI || !window.PIXI.live2d) {
     return;
   }
 
-  window.__AERTLY_LIVE2D_READY = true;
-
-  const app = new window.PIXI.Application({
+  const app = new PIXI.Application({
     width: 280,
     height: 420,
     transparent: true,
     antialias: true,
     autoStart: true
   });
-
   stage.appendChild(app.view);
 
-  const { Live2DModel } = window.PIXI.live2d;
+  const { Live2DModel } = PIXI.live2d;
   let model;
+
   try {
-    model = await Live2DModel.from("./shimakaze-model/shimakaze.model3.json", { idleMotionGroup: "Idle#1" });
+    // 严格依据 shimakaze.model3.json 配置
+    model = await Live2DModel.from("./shimakaze-model/shimakaze.model3.json", {
+      idleMotionGroup: "Idle#1", // 使用复杂的待机动作组
+      autoInteract: true         // 启用自动交互，处理 HitAreas
+    });
   } catch (error) {
-    status.textContent = "看板娘模型错误";
-    status.title = error?.message || "";
+    status.textContent = "模型加载失败";
     return;
   }
+
   app.stage.addChild(model);
   status.style.display = "none";
 
-  const scaleX = app.view.width / model.width;
-  const scaleY = app.view.height / model.height;
-  const scale = Math.min(scaleX, scaleY) * 0.9;
-  model.scale.set(scale);
-  model.x = app.view.width * 0.5;
-  model.y = app.view.height * 0.98;
-  model.anchor.set(0.5, 1);
-
-  app.view.addEventListener("click", (event) => {
-    if (typeof model.tap !== "function") {
-      return;
+  // 响应式位置与缩放
+  const updateLayout = () => {
+    if (model.width > 0) {
+      const scale = Math.min(app.view.width / model.width, app.view.height / model.height) * 0.95;
+      model.scale.set(scale);
+      model.anchor.set(0.5, 1);
+      model.x = app.view.width / 2;
+      model.y = app.view.height;
     }
-    const rect = app.view.getBoundingClientRect();
-    const x = ((event.clientX - rect.left) / rect.width) * app.view.width;
-    const y = ((event.clientY - rect.top) / rect.height) * app.view.height;
-    model.tap(x, y);
+  };
+  
+  updateLayout();
+  model.on('load', updateLayout);
+
+  // 鼠标跟随参数平滑处理
+  let targetX = 0, targetY = 0, currentX = 0, currentY = 0;
+  window.addEventListener("mousemove", (e) => {
+    targetX = (e.clientX / window.innerWidth - 0.5) * 2;
+    targetY = (e.clientY / window.innerHeight - 0.5) * 2;
   });
 
-  // 恢复 ticker，用于鼠标跟随，但不使用可能会冲突的手动参数设置
   app.ticker.add(() => {
-    if (model && typeof model.focus === "function") {
-      // 鼠标跟随：使用 Live2D 提供的标准 focus 方法，它会自动与原生动画融合
-      model.focus(currentX, -currentY);
-    }
+    currentX += (targetX - currentX) * 0.1;
+    currentY += (targetY - currentY) * 0.1;
+    // model.focus 会自动应用 JSON 中 MouseTracking 定义的所有参数（包括全身随动）
+    model.focus(currentX, -currentY);
+  });
+
+  // 点击交互：触发 HitAreas 定义的动作与语音
+  app.view.addEventListener("click", (e) => {
+    const rect = app.view.getBoundingClientRect();
+    model.tap(e.clientX - rect.left, e.clientY - rect.top);
   });
 }
 
