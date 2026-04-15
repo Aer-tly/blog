@@ -793,7 +793,11 @@ async function setupLive2D() {
 
   const modelConfigPath = "./shimakaze-model/shimakaze.model3.json";
   const modelBasePath = modelConfigPath.slice(0, modelConfigPath.lastIndexOf("/") + 1);
-  const makeAssetUrl = (path) => `${modelBasePath}${encodeURI(path)}`;
+  const encodeAssetPath = (path) => path
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+  const makeAssetUrl = (path) => `${modelBasePath}${encodeAssetPath(path)}`;
   let modelConfig;
   try {
     const response = await fetch(modelConfigPath);
