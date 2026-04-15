@@ -904,6 +904,17 @@ async function setupLive2D() {
     }
   });
   const coreModel = model.internalModel?.coreModel;
+  const playMotionGroup = (groupName) => {
+    if (!groupName || !motionGroups[groupName] || typeof model.motion !== "function") {
+      return false;
+    }
+    try {
+      model.motion(groupName);
+    } catch {
+      model.motion(groupName, undefined, 3);
+    }
+    return true;
+  };
   const readParamValueById = (id) => {
     if (!coreModel || typeof id !== "string") {
       return 0;
@@ -916,6 +927,11 @@ async function setupLive2D() {
   };
   const writeParamValueById = (id, value) => {
     if (!coreModel || typeof id !== "string") {
+      return;
+    }
+    if (typeof coreModel.addParameterValueById === "function") {
+      const current = readParamValueById(id);
+      coreModel.addParameterValueById(id, value - current, 1);
       return;
     }
     if (typeof coreModel.setParameterValueById === "function") {
@@ -1051,18 +1067,20 @@ async function setupLive2D() {
           if (!hits.includes(area.name) && !hits.includes(area.id)) {
             continue;
           }
+          const touchMotion = typeof area.name === "string" && area.name.startsWith("touch")
+            ? area.name
+            : null;
+          if (touchMotion && playMotionGroup(touchMotion)) {
+            return;
+          }
           const isQunRelated = area.name === "cut_qun" || area.name === "qun" || area.id === "qun_f_r" || area.id === "leg_r_3";
-          if (isQunRelated && typeof model.motion === "function" && motionGroups.cut_qun) {
+          if (isQunRelated && motionGroups.cut_qun) {
             const now = Date.now();
             if (now - lastQunCutAt < 420) {
               return;
             }
             lastQunCutAt = now;
-            try {
-              model.motion("cut_qun", undefined, 3);
-            } catch {
-              model.motion("cut_qun");
-            }
+            playMotionGroup("cut_qun");
             return;
           }
         }
