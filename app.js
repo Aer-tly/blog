@@ -865,7 +865,7 @@ async function setupLive2D() {
   try {
     model = await Live2DModel.from(normalizedConfigUrl, {
       idleMotionGroup,
-      autoInteract: false
+      autoInteract: true
     });
   } catch (error) {
     status.textContent = "模型加载失败";
@@ -890,20 +890,6 @@ async function setupLive2D() {
   model.interactive = true;
   model.buttonMode = true;
 
-  const motionByHitKey = new Map();
-  hitAreas.forEach((area) => {
-    if (typeof area?.Name === "string" && typeof area?.Motion === "string") {
-      motionByHitKey.set(area.Name, area.Motion);
-    }
-    if (typeof area?.Id === "string" && typeof area?.Motion === "string") {
-      motionByHitKey.set(area.Id, area.Motion);
-    }
-  });
-  paramHitItems.forEach((item) => {
-    if (typeof item?.HitArea === "string" && typeof item?.MaxMtn === "string") {
-      motionByHitKey.set(item.HitArea, item.MaxMtn);
-    }
-  });
   const orderedAreaDefs = hitAreas
     .map((area) => ({
       name: typeof area?.Name === "string" ? area.Name : "",
@@ -923,7 +909,22 @@ async function setupLive2D() {
       return -1;
     }
     if (typeof coreModel.getParameterIndexById === "function") {
-      return coreModel.getParameterIndexById(id);
+      const byId = coreModel.getParameterIndexById(id);
+      if (Number.isInteger(byId) && byId >= 0) {
+        return byId;
+      }
+    }
+    const ids = coreModel.parameters?.ids;
+    if (Array.isArray(ids)) {
+      for (let i = 0; i < ids.length; i += 1) {
+        const item = ids[i];
+        const raw = typeof item === "string"
+          ? item
+          : (item?.id || item?.s || item?._id || String(item));
+        if (raw === id || raw.endsWith(`/${id}`)) {
+          return i;
+        }
+      }
     }
     return -1;
   };
@@ -977,36 +978,6 @@ async function setupLive2D() {
   };
   let sockDrag = null;
   let qunIsCut = false;
-  let lastMotionAt = 0;
-
-  const playMotion = (groupName, index) => {
-    if (typeof model.motion !== "function" || !groupName || !motionGroups[groupName]) {
-      return false;
-    }
-    const now = Date.now();
-    if (now - lastMotionAt < 180) {
-      return true;
-    }
-    lastMotionAt = now;
-    try {
-      model.motion(groupName, index, 3);
-    } catch {
-      model.motion(groupName);
-    }
-    return true;
-  };
-
-  const pickMotionArea = (hits) => {
-    const areas = orderedAreaDefs.filter((area) => hits.includes(area.name) || hits.includes(area.id));
-    if (!areas.length) {
-      return null;
-    }
-    const nonIdle = areas.find((area) => {
-      const m = motionByHitKey.get(area.name) || motionByHitKey.get(area.id);
-      return m && m !== "Idle#1" && m !== "Idle";
-    });
-    return nonIdle || areas[0];
-  };
 
   const handleLive2DPointerDown = (event) => {
     const rect = app.view.getBoundingClientRect();
@@ -1015,7 +986,6 @@ async function setupLive2D() {
     }
     const x = (event.clientX - rect.left) * (app.view.width / rect.width);
     const y = (event.clientY - rect.top) * (app.view.height / rect.height);
-    let playedByHit = false;
     if (typeof model.hitTest === "function") {
       const hits = model.hitTest(x, y);
       if (Array.isArray(hits) && hits.length) {
@@ -1041,23 +1011,22 @@ async function setupLive2D() {
             };
           }
         }
-
-        const selectedArea = pickMotionArea(hits);
-        if (selectedArea) {
-          const motionName = motionByHitKey.get(selectedArea.name) || motionByHitKey.get(selectedArea.id);
-          if (motionName === "cut_qun") {
-            const ok = playMotion("cut_qun", qunIsCut ? 1 : 0);
-            if (ok) {
-              qunIsCut = !qunIsCut;
-              playedByHit = true;
+        const hasCutQunHit = hits.some((hit) => hit === "cut_qun" || hit === "qun" || hit === "qun_f_r");
+        const hasLeftSockHit = hits.some((hit) => hit === "wa_l");
+        if (hasCutQunHit || (qunIsCut && hasLeftSockHit)) {
+          if (typeof model.motion === "function" && motionGroups.cut_qun) {
+            try {
+              model.motion("cut_qun", qunIsCut ? 1 : 0, 3);
+            } catch {
+              model.motion("cut_qun");
             }
-          } else if (playMotion(motionName)) {
-            playedByHit = true;
+            qunIsCut = !qunIsCut;
+            return;
           }
         }
       }
     }
-    if (!playedByHit && typeof model.tap === "function") {
+    if (typeof model.tap === "function") {
       model.tap(x, y);
     }
   };
@@ -1082,6 +1051,15 @@ async function setupLive2D() {
 
   stage.addEventListener("pointerdown", handleLive2DPointerDown);
   app.view.addEventListener("pointerdown", handleLive2DPointerDown);
+  app.view.addEventListener("pointerdown", (event) => {
+    if (typeof app.view.setPointerCapture === "function" && typeof event.pointerId === "number") {
+      try {
+        app.view.setPointerCapture(event.pointerId);
+      } catch {
+        // ignore unsupported pointer capture edge cases
+      }
+    }
+  });
   stage.addEventListener("pointermove", handleLive2DPointerMove);
   app.view.addEventListener("pointermove", handleLive2DPointerMove);
   window.addEventListener("pointerup", clearSockDrag);
