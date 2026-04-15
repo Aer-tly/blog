@@ -865,7 +865,7 @@ async function setupLive2D() {
   try {
     model = await Live2DModel.from(normalizedConfigUrl, {
       idleMotionGroup,
-      autoInteract: true
+      autoInteract: false
     });
   } catch (error) {
     status.textContent = "模型加载失败";
@@ -911,6 +911,102 @@ async function setupLive2D() {
       order: Number.isFinite(Number(area?.Order)) ? Number(area.Order) : 0
     }))
     .sort((a, b) => b.order - a.order);
+  const paramHitByArea = new Map();
+  paramHitItems.forEach((item) => {
+    if (typeof item?.HitArea === "string") {
+      paramHitByArea.set(item.HitArea, item);
+    }
+  });
+  const coreModel = model.internalModel?.coreModel;
+  const getParamIndex = (id) => {
+    if (!coreModel || typeof id !== "string") {
+      return -1;
+    }
+    if (typeof coreModel.getParameterIndexById === "function") {
+      return coreModel.getParameterIndexById(id);
+    }
+    return -1;
+  };
+  const readParamValue = (index) => {
+    if (!coreModel || index < 0) {
+      return 0;
+    }
+    if (typeof coreModel.getParameterValueByIndex === "function") {
+      return coreModel.getParameterValueByIndex(index);
+    }
+    if (Array.isArray(coreModel.parameters?.values)) {
+      return Number(coreModel.parameters.values[index] ?? 0);
+    }
+    return 0;
+  };
+  const writeParamValue = (index, value) => {
+    if (!coreModel || index < 0) {
+      return;
+    }
+    if (typeof coreModel.setParameterValueByIndex === "function") {
+      coreModel.setParameterValueByIndex(index, value, 1);
+      return;
+    }
+    if (Array.isArray(coreModel.parameters?.values)) {
+      coreModel.parameters.values[index] = value;
+    }
+  };
+  const readParamMin = (index) => {
+    if (!coreModel || index < 0) {
+      return -1;
+    }
+    if (typeof coreModel.getParameterMinimumValue === "function") {
+      return coreModel.getParameterMinimumValue(index);
+    }
+    if (Array.isArray(coreModel.parameters?.minimumValues)) {
+      return Number(coreModel.parameters.minimumValues[index] ?? -1);
+    }
+    return -1;
+  };
+  const readParamMax = (index) => {
+    if (!coreModel || index < 0) {
+      return 1;
+    }
+    if (typeof coreModel.getParameterMaximumValue === "function") {
+      return coreModel.getParameterMaximumValue(index);
+    }
+    if (Array.isArray(coreModel.parameters?.maximumValues)) {
+      return Number(coreModel.parameters.maximumValues[index] ?? 1);
+    }
+    return 1;
+  };
+  let sockDrag = null;
+  let qunIsCut = false;
+  let lastMotionAt = 0;
+
+  const playMotion = (groupName, index) => {
+    if (typeof model.motion !== "function" || !groupName || !motionGroups[groupName]) {
+      return false;
+    }
+    const now = Date.now();
+    if (now - lastMotionAt < 180) {
+      return true;
+    }
+    lastMotionAt = now;
+    try {
+      model.motion(groupName, index, 3);
+    } catch {
+      model.motion(groupName);
+    }
+    return true;
+  };
+
+  const pickMotionArea = (hits) => {
+    const areas = orderedAreaDefs.filter((area) => hits.includes(area.name) || hits.includes(area.id));
+    if (!areas.length) {
+      return null;
+    }
+    const nonIdle = areas.find((area) => {
+      const m = motionByHitKey.get(area.name) || motionByHitKey.get(area.id);
+      return m && m !== "Idle#1" && m !== "Idle";
+    });
+    return nonIdle || areas[0];
+  };
 
   const handleLive2DPointerDown = (event) => {
     const rect = app.view.getBoundingClientRect();
@@ -920,24 +1016,44 @@ async function setupLive2D() {
     const x = (event.clientX - rect.left) * (app.view.width / rect.width);
     const y = (event.clientY - rect.top) * (app.view.height / rect.height);
     let playedByHit = false;
-    if (typeof model.hitTest === "function" && typeof model.motion === "function") {
+    if (typeof model.hitTest === "function") {
       const hits = model.hitTest(x, y);
       if (Array.isArray(hits) && hits.length) {
-        for (const area of orderedAreaDefs) {
-          if (!hits.includes(area.name) && !hits.includes(area.id)) {
-            continue;
+        const sockArea = orderedAreaDefs.find((area) => {
+          const key = hits.includes(area.name) ? area.name : (hits.includes(area.id) ? area.id : "");
+          const paramHit = paramHitByArea.get(key);
+          return paramHit && (paramHit.HitArea === "wa_l" || paramHit.HitArea === "wa_r");
+        });
+        if (sockArea) {
+          const key = hits.includes(sockArea.name) ? sockArea.name : sockArea.id;
+          const paramHit = paramHitByArea.get(key);
+          const paramIndex = getParamIndex(paramHit?.Id);
+          if (paramIndex >= 0) {
+            sockDrag = {
+              axis: Number(paramHit?.Axis) || 0,
+              factor: Number(paramHit?.Factor) || 0.1,
+              startX: x,
+              startY: y,
+              startValue: readParamValue(paramIndex),
+              min: readParamMin(paramIndex),
+              max: readParamMax(paramIndex),
+              index: paramIndex
+            };
           }
-          const motionName = motionByHitKey.get(area.name) || motionByHitKey.get(area.id);
-          if (!motionName || !motionGroups[motionName]) {
-            continue;
+        }
+
+        const selectedArea = pickMotionArea(hits);
+        if (selectedArea) {
+          const motionName = motionByHitKey.get(selectedArea.name) || motionByHitKey.get(selectedArea.id);
+          if (motionName === "cut_qun") {
+            const ok = playMotion("cut_qun", qunIsCut ? 1 : 0);
+            if (ok) {
+              qunIsCut = !qunIsCut;
+              playedByHit = true;
+            }
+          } else if (playMotion(motionName)) {
+            playedByHit = true;
           }
-          try {
-            model.motion(motionName, undefined, 3);
-          } catch {
-            model.motion(motionName);
-          }
-          playedByHit = true;
-          break;
         }
       }
     }
@@ -945,9 +1061,31 @@ async function setupLive2D() {
       model.tap(x, y);
     }
   };
+  const handleLive2DPointerMove = (event) => {
+    if (!sockDrag) {
+      return;
+    }
+    const rect = app.view.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) {
+      return;
+    }
+    const x = (event.clientX - rect.left) * (app.view.width / rect.width);
+    const y = (event.clientY - rect.top) * (app.view.height / rect.height);
+    const delta = sockDrag.axis === 1 ? (y - sockDrag.startY) : (x - sockDrag.startX);
+    const target = sockDrag.startValue + delta * sockDrag.factor;
+    const clamped = Math.max(sockDrag.min, Math.min(sockDrag.max, target));
+    writeParamValue(sockDrag.index, clamped);
+  };
+  const clearSockDrag = () => {
+    sockDrag = null;
+  };
 
   stage.addEventListener("pointerdown", handleLive2DPointerDown);
   app.view.addEventListener("pointerdown", handleLive2DPointerDown);
+  stage.addEventListener("pointermove", handleLive2DPointerMove);
+  app.view.addEventListener("pointermove", handleLive2DPointerMove);
+  window.addEventListener("pointerup", clearSockDrag);
+  window.addEventListener("pointercancel", clearSockDrag);
 }
 
 function initPage() {
