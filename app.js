@@ -791,14 +791,34 @@ async function setupLive2D() {
   });
   stage.appendChild(app.view);
 
+  const modelConfigPath = "./shimakaze-model/shimakaze.model3.json";
+  let modelConfig;
+  try {
+    const response = await fetch(modelConfigPath);
+    if (!response.ok) {
+      throw new Error("failed to read model config");
+    }
+    modelConfig = await response.json();
+  } catch (error) {
+    status.textContent = "模型配置读取失败";
+    return;
+  }
+
   const { Live2DModel } = PIXI.live2d;
   let model;
+  const motionGroups = modelConfig?.FileReferences?.Motions || {};
+  const hitAreas = modelConfig?.HitAreas || [];
+  const preferredIdleGroup = ["Idle#1", "Idle"].find((name) => Array.isArray(motionGroups[name]) && motionGroups[name].length > 0);
+  const fallbackIdleGroup = Object.keys(motionGroups).find((name) => {
+    const group = motionGroups[name];
+    return Array.isArray(group) && group.length > 0 && group.every((motion) => motion && motion.FileLoop === true);
+  });
+  const idleMotionGroup = preferredIdleGroup || fallbackIdleGroup;
 
   try {
-    // 严格依据 shimakaze.model3.json 配置
-    model = await Live2DModel.from("./shimakaze-model/shimakaze.model3.json", {
-      idleMotionGroup: "Idle#1", // 使用复杂的待机动作组
-      autoInteract: true         // 启用自动交互，处理 HitAreas
+    model = await Live2DModel.from(modelConfigPath, {
+      idleMotionGroup,
+      autoInteract: hitAreas.some((area) => typeof area?.Motion === "string" && area.Motion.length > 0)
     });
   } catch (error) {
     status.textContent = "模型加载失败";
@@ -808,7 +828,6 @@ async function setupLive2D() {
   app.stage.addChild(model);
   status.style.display = "none";
 
-  // 响应式位置与缩放
   const updateLayout = () => {
     if (model.width > 0) {
       const scale = Math.min(app.view.width / model.width, app.view.height / model.height) * 0.95;
@@ -820,27 +839,7 @@ async function setupLive2D() {
   };
   
   updateLayout();
-  model.on('load', updateLayout);
-
-  // 鼠标跟随参数平滑处理
-  let targetX = 0, targetY = 0, currentX = 0, currentY = 0;
-  window.addEventListener("mousemove", (e) => {
-    targetX = (e.clientX / window.innerWidth - 0.5) * 2;
-    targetY = (e.clientY / window.innerHeight - 0.5) * 2;
-  });
-
-  app.ticker.add(() => {
-    currentX += (targetX - currentX) * 0.1;
-    currentY += (targetY - currentY) * 0.1;
-    // model.focus 会自动应用 JSON 中 MouseTracking 定义的所有参数（包括全身随动）
-    model.focus(currentX, -currentY);
-  });
-
-  // 点击交互：触发 HitAreas 定义的动作与语音
-  app.view.addEventListener("click", (e) => {
-    const rect = app.view.getBoundingClientRect();
-    model.tap(e.clientX - rect.left, e.clientY - rect.top);
-  });
+  model.on("load", updateLayout);
 }
 
 function initPage() {
