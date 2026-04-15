@@ -817,10 +817,6 @@ async function setupLive2D() {
   const { Live2DModel } = PIXI.live2d;
   let model;
   const motionGroups = modelConfig?.FileReferences?.Motions || {};
-  const hitAreas = Array.isArray(modelConfig?.HitAreas) ? modelConfig.HitAreas : [];
-  const paramHitItems = Array.isArray(modelConfig?.Controllers?.ParamHit?.Items)
-    ? modelConfig.Controllers.ParamHit.Items
-    : [];
   const normalizedConfig = JSON.parse(JSON.stringify(modelConfig));
   const refs = normalizedConfig?.FileReferences || {};
   const normalizedMotions = refs?.Motions || {};
@@ -890,44 +886,6 @@ async function setupLive2D() {
   model.interactive = true;
   model.buttonMode = true;
 
-  const hitAreaMotionByKey = new Map();
-  hitAreas.forEach((area) => {
-    if (typeof area?.Name === "string" && typeof area?.Motion === "string") {
-      hitAreaMotionByKey.set(area.Name, area.Motion);
-    }
-  });
-  paramHitItems.forEach((item) => {
-    if (typeof item?.HitArea === "string" && typeof item?.MaxMtn === "string") {
-      hitAreaMotionByKey.set(item.HitArea, item.MaxMtn);
-    }
-  });
-
-  const orderedHitAreas = hitAreas
-    .map((area) => ({
-      ...area,
-      order: Number.isFinite(Number(area?.Order)) ? Number(area.Order) : 0
-    }))
-    .sort((a, b) => b.order - a.order);
-
-  const motionCooldownMs = 260;
-  let lastMotionAt = 0;
-
-  const playMotionGroup = (groupName) => {
-    if (typeof model.motion !== "function" || !groupName || !motionGroups[groupName]) {
-      return false;
-    }
-    if (Date.now() - lastMotionAt < motionCooldownMs) {
-      return true;
-    }
-    lastMotionAt = Date.now();
-    try {
-      model.motion(groupName, undefined, 3);
-    } catch {
-      model.motion(groupName);
-    }
-    return true;
-  };
-
   const mapPointerToModelPoint = (event) => {
     const point = new PIXI.Point();
     if (app.renderer.events && typeof app.renderer.events.mapPositionToPoint === "function") {
@@ -942,27 +900,18 @@ async function setupLive2D() {
   };
 
   const handleLive2DPointerDown = (event) => {
-    const point = mapPointerToModelPoint(event);
-    if (!point) {
+    if (typeof model.tap !== "function") {
       return;
     }
-
-    for (const area of orderedHitAreas) {
-      const hitByName = typeof area?.Name === "string" && model.hitTest?.(area.Name, point.x, point.y);
-      const hitById = typeof area?.Id === "string" && model.hitTest?.(area.Id, point.x, point.y);
-      if (!hitByName && !hitById) {
-        continue;
-      }
-
-      const motionName = hitAreaMotionByKey.get(area.Name) || hitAreaMotionByKey.get(area.Id);
-      if (playMotionGroup(motionName)) {
-        return;
-      }
-    }
-
-    if (typeof model.tap === "function") {
+    const point = mapPointerToModelPoint(event);
+    if (point) {
       model.tap(point.x, point.y);
+      return;
     }
+    const rect = app.view.getBoundingClientRect();
+    const x = (event.clientX - rect.left) * (app.view.width / rect.width);
+    const y = (event.clientY - rect.top) * (app.view.height / rect.height);
+    model.tap(x, y);
   };
 
   app.view.addEventListener("pointerdown", handleLive2DPointerDown);
