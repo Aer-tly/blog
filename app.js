@@ -793,11 +793,12 @@ async function setupLive2D() {
 
   const modelConfigPath = "./shimakaze-model/shimakaze.model3.json";
   const modelBasePath = modelConfigPath.slice(0, modelConfigPath.lastIndexOf("/") + 1);
+  const modelBaseUrl = new URL(modelBasePath, window.location.href);
   const encodeAssetPath = (path) => path
     .split("/")
     .map((segment) => encodeURIComponent(segment))
     .join("/");
-  const makeAssetUrl = (path) => `${modelBasePath}${encodeAssetPath(path)}`;
+  const makeAssetUrl = (path) => new URL(encodeAssetPath(path), modelBaseUrl).href;
   let modelConfig;
   try {
     const response = await fetch(modelConfigPath);
@@ -814,7 +815,7 @@ async function setupLive2D() {
   let model;
   const motionGroups = modelConfig?.FileReferences?.Motions || {};
   const hitAreas = modelConfig?.HitAreas || [];
-  const normalizedConfig = structuredClone(modelConfig);
+  const normalizedConfig = JSON.parse(JSON.stringify(modelConfig));
   const refs = normalizedConfig?.FileReferences || {};
   const normalizedMotions = refs?.Motions || {};
 
@@ -861,11 +862,9 @@ async function setupLive2D() {
       autoInteract: hitAreas.some((area) => typeof area?.Motion === "string" && area.Motion.length > 0)
     });
   } catch (error) {
-    URL.revokeObjectURL(normalizedConfigUrl);
     status.textContent = "模型加载失败";
     return;
   }
-  URL.revokeObjectURL(normalizedConfigUrl);
 
   app.stage.addChild(model);
   status.style.display = "none";
