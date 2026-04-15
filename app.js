@@ -904,14 +904,31 @@ async function setupLive2D() {
     }
   });
   const coreModel = model.internalModel?.coreModel;
+  const motionCursorByGroup = new Map();
+  const playMotionSound = (soundPath) => {
+    if (typeof soundPath !== "string" || !soundPath) {
+      return;
+    }
+    const audio = new Audio(makeAssetUrl(soundPath));
+    audio.preload = "auto";
+    audio.play().catch(() => {});
+  };
   const playMotionGroup = (groupName) => {
     if (!groupName || !motionGroups[groupName] || typeof model.motion !== "function") {
       return false;
     }
+    const motions = motionGroups[groupName];
+    const index = Array.isArray(motions) && motions.length
+      ? ((motionCursorByGroup.get(groupName) || 0) % motions.length)
+      : undefined;
+    motionCursorByGroup.set(groupName, (motionCursorByGroup.get(groupName) || 0) + 1);
     try {
-      model.motion(groupName);
+      model.motion(groupName, index, 3);
     } catch {
-      model.motion(groupName, undefined, 3);
+      model.motion(groupName);
+    }
+    if (Array.isArray(motions) && Number.isInteger(index)) {
+      playMotionSound(motions[index]?.Sound);
     }
     return true;
   };
@@ -966,6 +983,15 @@ async function setupLive2D() {
         const raw = typeof item === "string"
           ? item
           : (item?.id || item?.s || item?._id || String(item));
+        if (raw === id || raw.endsWith(`/${id}`)) {
+          return i;
+        }
+      }
+    }
+    if (typeof coreModel.getParameterCount === "function" && typeof coreModel.getParameterId === "function") {
+      const total = coreModel.getParameterCount();
+      for (let i = 0; i < total; i += 1) {
+        const raw = String(coreModel.getParameterId(i));
         if (raw === id || raw.endsWith(`/${id}`)) {
           return i;
         }
@@ -1048,9 +1074,8 @@ async function setupLive2D() {
               id: paramHit.Id,
               axis: Number(paramHit?.Axis) || 0,
               factor: Number(paramHit?.Factor) || 0.1,
-              startX: x,
-              startY: y,
-              startValue: readParamValueById(paramHit.Id),
+              lastX: x,
+              lastY: y,
               min: readParamMinById(paramHit.Id),
               max: readParamMaxById(paramHit.Id)
             };
@@ -1100,8 +1125,11 @@ async function setupLive2D() {
     }
     const x = (event.clientX - rect.left) * (app.view.width / rect.width);
     const y = (event.clientY - rect.top) * (app.view.height / rect.height);
-    const delta = sockDrag.axis === 1 ? (y - sockDrag.startY) : (x - sockDrag.startX);
-    const target = sockDrag.startValue + delta * sockDrag.factor;
+    const delta = sockDrag.axis === 1 ? (y - sockDrag.lastY) : (x - sockDrag.lastX);
+    sockDrag.lastX = x;
+    sockDrag.lastY = y;
+    const current = readParamValueById(sockDrag.id);
+    const target = current + delta * sockDrag.factor;
     const clamped = Math.max(sockDrag.min, Math.min(sockDrag.max, target));
     writeParamValueById(sockDrag.id, clamped);
   };
