@@ -68,8 +68,8 @@ body::after {
   bottom: 10px;
   width: 280px;
   height: 420px;
-  z-index: 6;
-  pointer-events: none;
+  z-index: 9999;
+  pointer-events: auto;
   user-select: none;
   transform-origin: left bottom;
 }

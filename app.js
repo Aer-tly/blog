@@ -883,21 +883,43 @@ async function setupLive2D() {
   
   updateLayout();
   model.on("load", updateLayout);
-  app.view.addEventListener("pointerdown", (event) => {
-    if (typeof model.tap !== "function") {
+  model.interactive = true;
+  model.buttonMode = true;
+
+  const touchMotionGroups = ["touch1#1", "touch2#1", "touch3#1"]
+    .filter((name) => Array.isArray(motionGroups[name]) && motionGroups[name].length > 0);
+  let touchMotionCursor = 0;
+
+  const playNextTouchMotion = () => {
+    if (!touchMotionGroups.length || typeof model.motion !== "function") {
       return;
     }
-    const point = new PIXI.Point();
-    if (app.renderer.events && typeof app.renderer.events.mapPositionToPoint === "function") {
-      app.renderer.events.mapPositionToPoint(point, event.clientX, event.clientY);
-      model.tap(point.x, point.y);
-      return;
+    const group = touchMotionGroups[touchMotionCursor % touchMotionGroups.length];
+    touchMotionCursor += 1;
+    try {
+      model.motion(group, undefined, 3);
+    } catch {
+      model.motion(group);
     }
-    if (app.renderer.plugins?.interaction && typeof app.renderer.plugins.interaction.mapPositionToPoint === "function") {
-      app.renderer.plugins.interaction.mapPositionToPoint(point, event.clientX, event.clientY);
-      model.tap(point.x, point.y);
+  };
+
+  const handleLive2DPointerDown = (event) => {
+    if (typeof model.tap === "function") {
+      const point = new PIXI.Point();
+      if (app.renderer.events && typeof app.renderer.events.mapPositionToPoint === "function") {
+        app.renderer.events.mapPositionToPoint(point, event.clientX, event.clientY);
+        model.tap(point.x, point.y);
+      } else if (app.renderer.plugins?.interaction && typeof app.renderer.plugins.interaction.mapPositionToPoint === "function") {
+        app.renderer.plugins.interaction.mapPositionToPoint(point, event.clientX, event.clientY);
+        model.tap(point.x, point.y);
+      }
     }
-  });
+    playNextTouchMotion();
+  };
+
+  shell.addEventListener("pointerdown", handleLive2DPointerDown);
+  stage.addEventListener("pointerdown", handleLive2DPointerDown);
+  app.view.addEventListener("pointerdown", handleLive2DPointerDown);
 }
 
 function initPage() {
