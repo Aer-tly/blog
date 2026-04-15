@@ -814,7 +814,6 @@ async function setupLive2D() {
   const { Live2DModel } = PIXI.live2d;
   let model;
   const motionGroups = modelConfig?.FileReferences?.Motions || {};
-  const hitAreas = modelConfig?.HitAreas || [];
   const normalizedConfig = JSON.parse(JSON.stringify(modelConfig));
   const refs = normalizedConfig?.FileReferences || {};
   const normalizedMotions = refs?.Motions || {};
@@ -859,7 +858,7 @@ async function setupLive2D() {
   try {
     model = await Live2DModel.from(normalizedConfigUrl, {
       idleMotionGroup,
-      autoInteract: false
+      autoInteract: true
     });
   } catch (error) {
     status.textContent = "模型加载失败";
@@ -881,27 +880,19 @@ async function setupLive2D() {
   
   updateLayout();
   model.on("load", updateLayout);
-
-  const hitAreasWithMotion = hitAreas
-    .filter((area) => typeof area?.Name === "string" && typeof area?.Motion === "string")
-    .sort((a, b) => (Number(b.Order) || 0) - (Number(a.Order) || 0));
-
-  app.view.addEventListener("click", (event) => {
-    const rect = app.view.getBoundingClientRect();
-    const x = (event.clientX - rect.left) * (app.view.width / rect.width);
-    const y = (event.clientY - rect.top) * (app.view.height / rect.height);
-
-    for (const area of hitAreasWithMotion) {
-      if (typeof model.hitTest === "function" && model.hitTest(area.Name, x, y)) {
-        if (typeof model.motion === "function") {
-          model.motion(area.Motion);
-          return;
-        }
-      }
+  app.view.addEventListener("pointerdown", (event) => {
+    if (typeof model.tap !== "function") {
+      return;
     }
-
-    if (typeof model.tap === "function") {
-      model.tap(x, y);
+    const point = new PIXI.Point();
+    if (app.renderer.events && typeof app.renderer.events.mapPositionToPoint === "function") {
+      app.renderer.events.mapPositionToPoint(point, event.clientX, event.clientY);
+      model.tap(point.x, point.y);
+      return;
+    }
+    if (app.renderer.plugins?.interaction && typeof app.renderer.plugins.interaction.mapPositionToPoint === "function") {
+      app.renderer.plugins.interaction.mapPositionToPoint(point, event.clientX, event.clientY);
+      model.tap(point.x, point.y);
     }
   });
 }
