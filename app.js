@@ -1063,8 +1063,8 @@ async function setupLive2D() {
             } catch {
               model.motion("cut_qun");
             }
+            return;
           }
-          return;
         }
       }
     }
