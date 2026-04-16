@@ -824,13 +824,13 @@ async function setupLive2D() {
   try {
     model = await Live2DModel.from(configBlob, { autoInteract: true });
 
-    // --- 强制分轨启动 ---
+    // 【找回待机核心】手动触发 Idle 动画循环
+    // 优先级 1 (Idle) 会让它在没有点击时自动循环播放待机动作
     if (model.internalModel.motionManager) {
-      // 启动轨道 0 播吉祥物
-      model.internalModel.motionManager.startMotion("Idle", 0, 1);
-      // 启动轨道 1 播人物
-      model.internalModel.motionManager.startMotion("Idle#1", 0, 2);
+        model.internalModel.motionManager.groups.idle = "Idle#1";
+        model.motion("Idle#1", undefined, 1);
     }
+
   } catch (error) {
     status.textContent = "模型加载失败";
     return;
@@ -840,21 +840,8 @@ async function setupLive2D() {
   status.style.display = "none";
 
   app.ticker.add(() => {
-    if (!model) return;
-
-    // 1. 袜子锁定
-    if (sockDrag && sockDrag.id && sockDrag.currentValue !== undefined) {
+    if (model && sockDrag && sockDrag.id && sockDrag.currentValue !== undefined) {
       model.internalModel.coreModel.setParameterValueById(sockDrag.id, sockDrag.currentValue);
-    }
-
-    // 2. 检查两条轨道是否都在运行
-    if (!sockDrag) {
-      const manager = model.internalModel.motionManager;
-      // 只有当完全没有动作在播时，才重新补齐双轨
-      if (!manager.playing) {
-        manager.startMotion("Idle", 0, 1);
-        manager.startMotion("Idle#1", 0, 2);
-      }
     }
   });
 
@@ -877,6 +864,12 @@ async function setupLive2D() {
   const paramHitMap = new Map();
   paramHits.forEach(item => { if (item.HitArea) paramHitMap.set(item.HitArea, item); });
 
+  const playMotionGroup = (groupName) => {
+    if (!groupName || !model.motion) return false;
+    model.motion(groupName, undefined, 2);
+    return true;
+  };
+
   const handlePointerDown = (e) => {
     const rect = app.view.getBoundingClientRect();
     const x = (e.clientX - rect.left) * (app.view.width / rect.width);
@@ -889,7 +882,7 @@ async function setupLive2D() {
       const now = Date.now();
       if (now - lastQunCutAt > 420) {
         lastQunCutAt = now;
-        model.motion("cut_qun", undefined, 3); // 优先级 3 覆盖一切
+        model.motion("cut_qun", undefined, 3);
         return;
       }
     }
@@ -909,7 +902,7 @@ async function setupLive2D() {
         };
       }
       const motionToPlay = targetArea.Motion || (targetArea.name.startsWith("touch") ? targetArea.name : null);
-      if (motionToPlay) model.motion(motionToPlay, undefined, 2);
+      if (motionToPlay) playMotionGroup(motionToPlay);
     }
   };
 
