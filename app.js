@@ -736,11 +736,9 @@ async function setupLive2D() {
   const hiddenStateKey = "aertly-live2d-hidden";
   const shell = document.createElement("div");
   shell.className = "live2d-shell";
-
   const stage = document.createElement("div");
   stage.className = "live2d-stage";
   shell.appendChild(stage);
-
   const toggle = document.createElement("button");
   toggle.className = "live2d-toggle";
   toggle.textContent = localStorage.getItem(hiddenStateKey) === "true" ? "显示" : "隐藏";
@@ -766,22 +764,21 @@ async function setupLive2D() {
   stage.appendChild(app.view);
 
   const { Live2DModel } = PIXI.live2d;
-  let model, sockDrag = null, lastQunCutAt = 0;
+  let model;
+  let sockDrag = null; // 确保在 setup 作用域内
+  let lastQunCutAt = 0;
 
   try {
-    // 关键修复：确保先加载模型，再通过 model.internalModel 访问设置
+    // 开启 autoInteract 确保基础的灵动跟随和呼吸
     model = await Live2DModel.from("./shimakaze-model/shimakaze.model3.json", { autoInteract: true });
-  } catch (e) {
-    console.error("模型加载失败:", e);
-    return;
-  }
+  } catch (e) { return; }
 
   app.stage.addChild(model);
 
-  // 【袜子锁定补丁】
+  // 【核心补丁】在 ticker 中强制覆盖，解决袜子被 Idle 动画重置的问题
   app.ticker.add(() => {
     if (model && sockDrag && sockDrag.id) {
-      // 每一帧强制写入，防止待机动作把袜子复位
+      // 每一帧都强制写入记录的 currentValue
       model.internalModel.coreModel.setParameterValueById(sockDrag.id, sockDrag.currentValue);
     }
   });
@@ -795,15 +792,12 @@ async function setupLive2D() {
   };
   updateLayout();
 
-  // 关键修复：使用更安全的路径获取交互配置，避免 undefined 报错
   const paramHitItems = model.internalModel.settings.controllers?.paramHit?.items || [];
 
   app.view.addEventListener("pointerdown", (e) => {
     const rect = app.view.getBoundingClientRect();
     const x = (e.clientX - rect.left) * (app.view.width / rect.width);
     const y = (e.clientY - rect.top) * (app.view.height / rect.height);
-
-    // 获取点击区域
     const hits = model.hitTest(x, y);
 
     // 1. 裙子逻辑
@@ -812,13 +806,11 @@ async function setupLive2D() {
       if (now - lastQunCutAt > 420) {
         lastQunCutAt = now;
         model.motion("cut_qun", undefined, 3);
-        return;
       }
     }
 
     // 2. 袜子逻辑
     hits.forEach(hit => {
-      // 在配置中查找对应的参数映射
       const pInfo = paramHitItems.find(item => item.hitArea === hit);
       if (pInfo && pInfo.hitArea.startsWith("wa_")) {
         sockDrag = {
@@ -826,11 +818,17 @@ async function setupLive2D() {
           axis: pInfo.axis || 0,
           factor: pInfo.factor || 0.1,
           lastX: x, lastY: y,
+          // 初始值保存当前模型数值
           currentValue: model.internalModel.coreModel.getParameterValueById(pInfo.id),
           min: -100, max: 100
         };
       }
     });
+
+    // 3. 原厂动作找回：不要让 return 拦截，确保 tap 总能执行
+    if (typeof model.tap === "function") {
+      model.tap(x, y);
+    }
   });
 
   window.addEventListener("pointermove", (e) => {
@@ -839,11 +837,12 @@ async function setupLive2D() {
     const x = (e.clientX - rect.left) * (app.view.width / rect.width);
     const y = (e.clientY - rect.top) * (app.view.height / rect.height);
 
+    // 计算位移增量
     const delta = sockDrag.axis === 1 ? (y - sockDrag.lastY) : (x - sockDrag.lastX);
     sockDrag.lastX = x;
     sockDrag.lastY = y;
 
-    // 更新本地数值
+    // 这里的关键是：直接修改变量中的 currentValue，而不是从模型重新 read（防止 read 到 0）
     sockDrag.currentValue = Math.max(sockDrag.min, Math.min(sockDrag.max, sockDrag.currentValue + delta * sockDrag.factor));
   });
 
