@@ -729,7 +729,6 @@ function loadExternalScript(src, marker) {
     document.head.appendChild(script);
   });
 }
-
 async function setupLive2D() {
   if (window.matchMedia("(max-width: 900px)").matches) return;
 
@@ -802,9 +801,9 @@ async function setupLive2D() {
 
   const { Live2DModel } = PIXI.live2d;
   let model;
-  let lastQunCutAt = 0; // 记录裙子动作时间
+  let lastQunCutAt = 0;
 
-  // 预处理配置
+  // 预处理配置，修复 # 路径音频加载
   const normalizedConfig = JSON.parse(JSON.stringify(modelConfig));
   const refs = normalizedConfig.FileReferences || {};
   if (refs.Moc) refs.Moc = makeAssetUrl(refs.Moc);
@@ -823,8 +822,8 @@ async function setupLive2D() {
   const configBlob = URL.createObjectURL(new Blob([JSON.stringify(normalizedConfig)], { type: "application/json" }));
 
   try {
-    // 保持你这版正常的加载参数，不做任何变动
-    model = await Live2DModel.from(configBlob, { autoInteract: false });
+    // 【核心不动】保持你认为跟随正常的配置
+    model = await Live2DModel.from(configBlob, { autoInteract: true });
   } catch (error) {
     status.textContent = "模型加载失败";
     return;
@@ -842,41 +841,23 @@ async function setupLive2D() {
   };
   updateLayout();
 
-  const hitAreas = Array.isArray(modelConfig.HitAreas) ? modelConfig.HitAreas : [];
-  const orderedAreaDefs = hitAreas.map(a => ({
-    name: a.Name || "", id: a.Id || "", order: a.Order || 0, Motion: a.Motion || null
-  })).sort((a, b) => b.order - a.order);
-
-  const handlePointerDown = (e) => {
+  // 【仅增加裙子动作监听】不拦截任何事件，确保 SDK 原有的视线跟随监听正常运行
+  app.view.addEventListener("pointerdown", (e) => {
     const rect = app.view.getBoundingClientRect();
     const x = (e.clientX - rect.left) * (app.view.width / rect.width);
     const y = (e.clientY - rect.top) * (app.view.height / rect.height);
 
     const hits = model.hitTest(x, y);
-    if (!hits.length) return;
 
-    // --- 找回 QunCut 逻辑 ---
-    const isQun = ["cut_qun", "qun", "qun_f_r", "leg_r_3"].some(k => hits.includes(k));
-    if (isQun) {
+    // 只处理裙子这个特殊动作，其它的交给 SDK 自己的 autoInteract 处理
+    if (hits.some(h => ["cut_qun", "qun", "qun_f_r", "leg_r_3"].includes(h))) {
       const now = Date.now();
       if (now - lastQunCutAt > 420) {
         lastQunCutAt = now;
         model.motion("cut_qun", undefined, 3);
-        return; // 触发特殊动作后跳出，不触发常规点击
       }
     }
-
-    // --- 恢复常规点击动作 ---
-    const targetArea = orderedAreaDefs.find(a => hits.includes(a.name) || hits.includes(a.id));
-    if (targetArea) {
-      const motionToPlay = targetArea.Motion || (targetArea.name.startsWith("touch") ? targetArea.name : null);
-      if (motionToPlay && model.motion) {
-        model.motion(motionToPlay, undefined, 2);
-      }
-    }
-  };
-
-  app.view.addEventListener("pointerdown", handlePointerDown);
+  });
 }
 function initPage() {
   const page = document.body.dataset.page;
