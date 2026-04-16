@@ -822,7 +822,7 @@ async function setupLive2D() {
   const configBlob = URL.createObjectURL(new Blob([JSON.stringify(normalizedConfig)], { type: "application/json" }));
 
   try {
-    model = await Live2DModel.from(configBlob, { autoInteract: false });
+    model = await Live2DModel.from(configBlob, { autoInteract: true });
 
     // 【找回待机核心】手动触发 Idle 动画循环
     // 优先级 1 (Idle) 会让它在没有点击时自动循环播放待机动作
