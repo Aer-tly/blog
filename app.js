@@ -802,7 +802,7 @@ async function setupLive2D() {
   const { Live2DModel } = PIXI.live2d;
   let model;
   let sockDrag = null;
-  let lastQunCutAt = 0; // 仅增加这一个变量控制频率
+  let lastQunCutAt = 0;
 
   const normalizedConfig = JSON.parse(JSON.stringify(modelConfig));
   const refs = normalizedConfig.FileReferences || {};
@@ -822,8 +822,14 @@ async function setupLive2D() {
   const configBlob = URL.createObjectURL(new Blob([JSON.stringify(normalizedConfig)], { type: "application/json" }));
 
   try {
-    // 维持你要求的 autoInteract: false
     model = await Live2DModel.from(configBlob, { autoInteract: false });
+
+    // 【找回待机核心】手动触发 Idle 动画循环
+    // 优先级 1 (Idle) 会让它在没有点击时自动循环播放待机动作
+    if (model.internalModel.motionManager) {
+      model.internalModel.motionManager.startRandomMotion("Idle", 1);
+    }
+
   } catch (error) {
     status.textContent = "模型加载失败";
     return;
@@ -871,7 +877,6 @@ async function setupLive2D() {
     const hits = model.hitTest(x, y);
     if (!hits.length) return;
 
-    // --- 仅增加这一段 QunCut 判定，其他逻辑原封不动 ---
     if (hits.some(h => ["cut_qun", "qun", "qun_f_r", "leg_r_3"].includes(h))) {
       const now = Date.now();
       if (now - lastQunCutAt > 420) {
