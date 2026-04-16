@@ -801,9 +801,9 @@ async function setupLive2D() {
 
   const { Live2DModel } = PIXI.live2d;
   let model;
-  let lastQunCutAt = 0;
+  let sockDrag = null;
+  let lastQunCutAt = 0; // 仅增加这一个变量控制频率
 
-  // 预处理配置，修复 # 路径音频加载
   const normalizedConfig = JSON.parse(JSON.stringify(modelConfig));
   const refs = normalizedConfig.FileReferences || {};
   if (refs.Moc) refs.Moc = makeAssetUrl(refs.Moc);
@@ -822,8 +822,8 @@ async function setupLive2D() {
   const configBlob = URL.createObjectURL(new Blob([JSON.stringify(normalizedConfig)], { type: "application/json" }));
 
   try {
-    // 【核心不动】保持你认为跟随正常的配置
-    model = await Live2DModel.from(configBlob, { autoInteract: true });
+    // 维持你要求的 autoInteract: false
+    model = await Live2DModel.from(configBlob, { autoInteract: false });
   } catch (error) {
     status.textContent = "模型加载失败";
     return;
@@ -831,6 +831,12 @@ async function setupLive2D() {
 
   app.stage.addChild(model);
   status.style.display = "none";
+
+  app.ticker.add(() => {
+    if (model && sockDrag && sockDrag.id && sockDrag.currentValue !== undefined) {
+      model.internalModel.coreModel.setParameterValueById(sockDrag.id, sockDrag.currentValue);
+    }
+  });
 
   const updateLayout = () => {
     const scale = Math.min(app.view.width / model.width, app.view.height / model.height) * 0.95;
@@ -841,23 +847,72 @@ async function setupLive2D() {
   };
   updateLayout();
 
-  // 【仅增加裙子动作监听】不拦截任何事件，确保 SDK 原有的视线跟随监听正常运行
-  app.view.addEventListener("pointerdown", (e) => {
+  const hitAreas = Array.isArray(modelConfig.HitAreas) ? modelConfig.HitAreas : [];
+  const paramHits = Array.isArray(modelConfig.Controllers?.ParamHit?.Items) ? modelConfig.Controllers.ParamHit.Items : [];
+
+  const orderedAreaDefs = hitAreas.map(a => ({
+    name: a.Name || "", id: a.Id || "", order: a.Order || 0, Motion: a.Motion || null
+  })).sort((a, b) => b.order - a.order);
+
+  const paramHitMap = new Map();
+  paramHits.forEach(item => { if (item.HitArea) paramHitMap.set(item.HitArea, item); });
+
+  const playMotionGroup = (groupName) => {
+    if (!groupName || !model.motion) return false;
+    model.motion(groupName, undefined, 2);
+    return true;
+  };
+
+  const handlePointerDown = (e) => {
     const rect = app.view.getBoundingClientRect();
     const x = (e.clientX - rect.left) * (app.view.width / rect.width);
     const y = (e.clientY - rect.top) * (app.view.height / rect.height);
 
     const hits = model.hitTest(x, y);
+    if (!hits.length) return;
 
-    // 只处理裙子这个特殊动作，其它的交给 SDK 自己的 autoInteract 处理
+    // --- 仅增加这一段 QunCut 判定，其他逻辑原封不动 ---
     if (hits.some(h => ["cut_qun", "qun", "qun_f_r", "leg_r_3"].includes(h))) {
       const now = Date.now();
       if (now - lastQunCutAt > 420) {
         lastQunCutAt = now;
         model.motion("cut_qun", undefined, 3);
+        return;
       }
     }
-  });
+
+    const targetArea = orderedAreaDefs.find(a => hits.includes(a.name) || hits.includes(a.id));
+    if (targetArea) {
+      const pInfo = paramHitMap.get(targetArea.name) || paramHitMap.get(targetArea.id);
+      if (pInfo && (pInfo.HitArea.startsWith("wa_"))) {
+        sockDrag = {
+          id: pInfo.Id,
+          axis: pInfo.Axis || 0,
+          factor: pInfo.Factor || 0.1,
+          lastX: x, lastY: y,
+          min: model.internalModel.coreModel.getParameterMinimumValue(model.internalModel.coreModel.getParameterIndexById(pInfo.Id)),
+          max: model.internalModel.coreModel.getParameterMaximumValue(model.internalModel.coreModel.getParameterIndexById(pInfo.Id)),
+          currentValue: model.internalModel.coreModel.getParameterValueById(pInfo.Id)
+        };
+      }
+      const motionToPlay = targetArea.Motion || (targetArea.name.startsWith("touch") ? targetArea.name : null);
+      if (motionToPlay) playMotionGroup(motionToPlay);
+    }
+  };
+
+  const handlePointerMove = (e) => {
+    if (!sockDrag) return;
+    const rect = app.view.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (app.view.width / rect.width);
+    const y = (e.clientY - rect.top) * (app.view.height / rect.height);
+    const delta = sockDrag.axis === 1 ? (y - sockDrag.lastY) : (x - sockDrag.lastX);
+    sockDrag.lastX = x; sockDrag.lastY = y;
+    sockDrag.currentValue = Math.max(sockDrag.min, Math.min(sockDrag.max, sockDrag.currentValue + delta * sockDrag.factor));
+  };
+
+  app.view.addEventListener("pointerdown", handlePointerDown);
+  window.addEventListener("pointermove", handlePointerMove);
+  window.addEventListener("pointerup", () => { sockDrag = null; });
 }
 function initPage() {
   const page = document.body.dataset.page;
