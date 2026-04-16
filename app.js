@@ -822,15 +822,14 @@ async function setupLive2D() {
   const configBlob = URL.createObjectURL(new Blob([JSON.stringify(normalizedConfig)], { type: "application/json" }));
 
   try {
+    // 开启自动交互以获得灵敏的视线跟随
     model = await Live2DModel.from(configBlob, { autoInteract: true });
 
-    // 【找回待机核心】手动触发 Idle 动画循环
-    // 优先级 1 (Idle) 会让它在没有点击时自动循环播放待机动作
+    // 初始化时分层启动动作
     if (model.internalModel.motionManager) {
-        model.internalModel.motionManager.groups.idle = "Idle#1";
-        model.motion("Idle#1", undefined, 1);
+      model.motion("Idle", undefined, 1);   // 包含吉祥物的待机
+      model.motion("Idle#1", undefined, 2); // 人物主体的待机
     }
-
   } catch (error) {
     status.textContent = "模型加载失败";
     return;
@@ -839,9 +838,19 @@ async function setupLive2D() {
   app.stage.addChild(model);
   status.style.display = "none";
 
+  // 在 Ticker 中维持双层待机逻辑
   app.ticker.add(() => {
-    if (model && sockDrag && sockDrag.id && sockDrag.currentValue !== undefined) {
+    if (!model) return;
+
+    // 1. 维持原本的袜子锁定逻辑
+    if (sockDrag && sockDrag.id && sockDrag.currentValue !== undefined) {
       model.internalModel.coreModel.setParameterValueById(sockDrag.id, sockDrag.currentValue);
+    }
+
+    // 2. 自动续播逻辑：如果当前没有动作在播放，则重新踢起两层待机
+    if (!model.internalModel.motionManager.playing && !sockDrag) {
+      model.motion("Idle", undefined, 1);
+      model.motion("Idle#1", undefined, 2);
     }
   });
 
@@ -878,11 +887,12 @@ async function setupLive2D() {
     const hits = model.hitTest(x, y);
     if (!hits.length) return;
 
+    // 裙子判定逻辑
     if (hits.some(h => ["cut_qun", "qun", "qun_f_r", "leg_r_3"].includes(h))) {
       const now = Date.now();
       if (now - lastQunCutAt > 420) {
         lastQunCutAt = now;
-        model.motion("cut_qun", undefined, 3);
+        model.motion("cut_qun", undefined, 3); // 优先级 3 确保盖过待机
         return;
       }
     }
