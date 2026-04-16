@@ -1,4 +1,4 @@
-﻿const content = window.blogContent;
+const content = window.blogContent;
 document.documentElement.classList.add("js-ready");
 
 const DEFAULT_COMMENT_AVATAR = "./default-avatar.svg";
@@ -873,6 +873,12 @@ async function setupLive2D() {
   }
 
   app.stage.addChild(model);
+  app.ticker.add(() => {
+    if (typeof sockDrag !== 'undefined' && sockDrag && sockDrag.currentValue !== undefined) {
+        // 在每一帧渲染前强行锁定袜子位置，使其优先级高于 Idle 动画
+        writeParamValueById(sockDrag.id, sockDrag.currentValue);
+    }
+  });
   status.style.display = "none";
 
   const updateLayout = () => {
@@ -906,13 +912,22 @@ async function setupLive2D() {
   const coreModel = model.internalModel?.coreModel;
   const motionCursorByGroup = new Map();
   const playMotionSound = (soundPath) => {
-    if (typeof soundPath !== "string" || !soundPath) {
-      return;
-    }
-    const audio = new Audio(makeAssetUrl(soundPath));
+    if (!soundPath) return;
+    const finalUrl = soundPath.startsWith("http")
+        ? soundPath
+        : `${modelBaseUrl}${soundPath}`.replace(/#/g, '%23');
+
+    const audio = new Audio(finalUrl);
     audio.preload = "auto";
-    audio.play().catch(() => {});
+    const playPromise = audio.play();
+
+    if (playPromise !== undefined) {
+        playPromise.catch(error => {
+        console.warn("音频播放被拦截，请先点击页面任意位置:", error);
+        });
+    }
   };
+
   const playMotionGroup = (groupName) => {
     if (!groupName || !motionGroups[groupName] || typeof model.motion !== "function") {
       return false;
@@ -1092,7 +1107,7 @@ async function setupLive2D() {
           if (!hits.includes(area.name) && !hits.includes(area.id)) {
             continue;
           }
-          const touchMotion = typeof area.name === "string" && area.name.startsWith("touch")
+          const touchMotion = area.Motion || (typeof area.name === "string" ? area.name : null);
             ? area.name
             : null;
           if (touchMotion && playMotionGroup(touchMotion)) {
@@ -1132,6 +1147,7 @@ async function setupLive2D() {
     const target = current + delta * sockDrag.factor;
     const clamped = Math.max(sockDrag.min, Math.min(sockDrag.max, target));
     writeParamValueById(sockDrag.id, clamped);
+    sockDrag.currentValue = clamped;
   };
   const clearSockDrag = () => {
     sockDrag = null;
