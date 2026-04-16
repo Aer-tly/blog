@@ -827,7 +827,8 @@ async function setupLive2D() {
     // 【找回待机核心】手动触发 Idle 动画循环
     // 优先级 1 (Idle) 会让它在没有点击时自动循环播放待机动作
     if (model.internalModel.motionManager) {
-      model.internalModel.motionManager.startRandomMotion("Idle", 1);
+        model.internalModel.motionManager.groups.idle = "Idle#1";
+        model.motion("Idle#1", undefined, 1);
     }
 
   } catch (error) {
