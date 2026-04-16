@@ -787,7 +787,6 @@ async function setupLive2D() {
   const modelConfigPath = "./shimakaze-model/shimakaze.model3.json";
   const modelBasePath = modelConfigPath.slice(0, modelConfigPath.lastIndexOf("/") + 1);
   const modelBaseUrl = new URL(modelBasePath, window.location.href);
-
   const encodeAssetPath = (path) => path.split("/").map(s => encodeURIComponent(s)).join("/");
   const makeAssetUrl = (path) => new URL(encodeAssetPath(path), modelBaseUrl).href;
 
@@ -802,20 +801,20 @@ async function setupLive2D() {
 
   const { Live2DModel } = PIXI.live2d;
   let model;
-  let sockDrag = null; // 【关键】确保整个作用域内只有一个 sockDrag
+  let sockDrag = null; // 确保作用域唯一
+  let lastQunCutAt = 0;
 
-  // 预处理配置，修复 # 路径音频加载
+  // 1. 预处理配置，解决音质重叠和路径转义
   const normalizedConfig = JSON.parse(JSON.stringify(modelConfig));
   const refs = normalizedConfig.FileReferences || {};
   if (refs.Moc) refs.Moc = makeAssetUrl(refs.Moc);
   if (Array.isArray(refs.Textures)) refs.Textures = refs.Textures.map(t => makeAssetUrl(t));
   if (refs.Physics) refs.Physics = makeAssetUrl(refs.Physics);
-
   Object.values(refs.Motions || {}).forEach(group => {
     if (Array.isArray(group)) {
       group.forEach(m => {
         if (m.File) m.File = makeAssetUrl(m.File);
-        if (m.Sound) m.Sound = makeAssetUrl(m.Sound); // 这里的编码处理解决不发声
+        if (m.Sound) m.Sound = makeAssetUrl(m.Sound);
       });
     }
   });
@@ -823,7 +822,7 @@ async function setupLive2D() {
   const configBlob = URL.createObjectURL(new Blob([JSON.stringify(normalizedConfig)], { type: "application/json" }));
 
   try {
-    model = await Live2DModel.from(configBlob, { autoInteract: false }); // 禁用自动交互防止冲突
+    model = await Live2DModel.from(configBlob, { autoInteract: true }); // 开启以获得鼠标跟随
   } catch (error) {
     status.textContent = "模型加载失败";
     return;
@@ -832,10 +831,10 @@ async function setupLive2D() {
   app.stage.addChild(model);
   status.style.display = "none";
 
-  // 【核心修复】每帧锁定锁定逻辑
+  // 【核心修复】袜子锁定逻辑
   app.ticker.add(() => {
-    if (model && sockDrag && sockDrag.id && sockDrag.currentValue !== undefined) {
-      // 绕过所有系统，直接强制写入 Core 参数值
+    if (model && sockDrag && sockDrag.id) {
+      // 强行覆盖待机动画，锁定袜子参数
       model.internalModel.coreModel.setParameterValueById(sockDrag.id, sockDrag.currentValue);
     }
   });
@@ -851,21 +850,12 @@ async function setupLive2D() {
 
   const hitAreas = Array.isArray(modelConfig.HitAreas) ? modelConfig.HitAreas : [];
   const paramHits = Array.isArray(modelConfig.Controllers?.ParamHit?.Items) ? modelConfig.Controllers.ParamHit.Items : [];
-
   const orderedAreaDefs = hitAreas.map(a => ({
     name: a.Name || "", id: a.Id || "", order: a.Order || 0, Motion: a.Motion || null
   })).sort((a, b) => b.order - a.order);
 
   const paramHitMap = new Map();
   paramHits.forEach(item => { if (item.HitArea) paramHitMap.set(item.HitArea, item); });
-
-  const playMotionGroup = (groupName) => {
-    if (!groupName || !model.motion) return false;
-    // 修复音质奇怪：直接让模型播放动作，不手动调用 playMotionSound
-    // Pixi-live2d 会自动处理配置文件中映射好的音频
-    model.motion(groupName, undefined, 2); // 优先级 2 (Normal)
-    return true;
-  };
 
   const handlePointerDown = (e) => {
     const rect = app.view.getBoundingClientRect();
@@ -875,38 +865,50 @@ async function setupLive2D() {
     const hits = model.hitTest(x, y);
     if (!hits.length) return;
 
-    // 1. 处理袜子拖动判定
     const targetArea = orderedAreaDefs.find(a => hits.includes(a.name) || hits.includes(a.id));
     if (targetArea) {
+      // 1. 袜子拖动判定
       const pInfo = paramHitMap.get(targetArea.name) || paramHitMap.get(targetArea.id);
-      if (pInfo && (pInfo.HitArea.startsWith("wa_"))) {
+      if (pInfo && pInfo.HitArea.startsWith("wa_")) {
+        const core = model.internalModel.coreModel;
         sockDrag = {
           id: pInfo.Id,
           axis: pInfo.Axis || 0,
           factor: pInfo.Factor || 0.1,
           lastX: x, lastY: y,
-          min: model.internalModel.coreModel.getParameterMinimumValue(model.internalModel.coreModel.getParameterIndexById(pInfo.Id)),
-          max: model.internalModel.coreModel.getParameterMaximumValue(model.internalModel.coreModel.getParameterIndexById(pInfo.Id)),
-          currentValue: model.internalModel.coreModel.getParameterValueById(pInfo.Id)
+          min: core.getParameterMinimumValue(core.getParameterIndexById(pInfo.Id)),
+          max: core.getParameterMaximumValue(core.getParameterIndexById(pInfo.Id)),
+          currentValue: core.getParameterValueById(pInfo.Id)
         };
       }
 
-      // 2. 触发点击动作
-      const motionToPlay = targetArea.Motion || (targetArea.name.startsWith("touch") ? targetArea.name : null);
-      if (motionToPlay) playMotionGroup(motionToPlay);
+      // 2. 裙子(cut_qun)逻辑补全
+      const isQun = ["cut_qun", "qun", "qun_f_r", "leg_r_3"].some(k => hits.includes(k));
+      if (isQun && model.motion) {
+        const now = Date.now();
+        if (now - lastQunCutAt > 420) {
+          lastQunCutAt = now;
+          model.motion("cut_qun", undefined, 3);
+          return;
+        }
+      }
+
+      // 3. 通用动作触发
+      const motion = targetArea.Motion || (targetArea.name.startsWith("touch") ? targetArea.name : null);
+      if (motion) model.motion(motion, undefined, 3);
     }
   };
 
   const handlePointerMove = (e) => {
-    if (!sockDrag) return;
-    const rect = app.view.getBoundingClientRect();
-    const x = (e.clientX - rect.left) * (app.view.width / rect.width);
-    const y = (e.clientY - rect.top) * (app.view.height / rect.height);
-
-    const delta = sockDrag.axis === 1 ? (y - sockDrag.lastY) : (x - sockDrag.lastX);
-    sockDrag.lastX = x; sockDrag.lastY = y;
-
-    sockDrag.currentValue = Math.max(sockDrag.min, Math.min(sockDrag.max, sockDrag.currentValue + delta * sockDrag.factor));
+    if (sockDrag) {
+      const rect = app.view.getBoundingClientRect();
+      const x = (e.clientX - rect.left) * (app.view.width / rect.width);
+      const y = (e.clientY - rect.top) * (app.view.height / rect.height);
+      const delta = sockDrag.axis === 1 ? (y - sockDrag.lastY) : (x - sockDrag.lastX);
+      sockDrag.lastX = x; sockDrag.lastY = y;
+      sockDrag.currentValue = Math.max(sockDrag.min, Math.min(sockDrag.max, sockDrag.currentValue + delta * sockDrag.factor));
+    }
+    // 鼠标跟随由 autoInteract: true 自动接管，此处无需额外代码
   };
 
   app.view.addEventListener("pointerdown", handlePointerDown);
