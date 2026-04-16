@@ -731,9 +731,7 @@ function loadExternalScript(src, marker) {
 }
 
 async function setupLive2D() {
-  if (window.matchMedia("(max-width: 900px)").matches) {
-    return;
-  }
+  if (window.matchMedia("(max-width: 900px)").matches) return;
 
   const hiddenStateKey = "aertly-live2d-hidden";
   const shell = document.createElement("div");
@@ -758,10 +756,7 @@ async function setupLive2D() {
   shell.appendChild(toggle);
 
   const isHidden = localStorage.getItem(hiddenStateKey) === "true";
-  if (isHidden) {
-    shell.classList.add("is-hidden");
-    toggle.textContent = "显示";
-  }
+  if (isHidden) { shell.classList.add("is-hidden"); toggle.textContent = "显示"; }
 
   document.body.appendChild(shell);
 
@@ -780,16 +775,11 @@ async function setupLive2D() {
     return;
   }
 
-  if (!window.PIXI || !window.PIXI.live2d) {
-    return;
-  }
+  if (!window.PIXI || !window.PIXI.live2d) return;
 
   const app = new PIXI.Application({
-    width: 280,
-    height: 420,
-    transparent: true,
-    antialias: true,
-    autoStart: true
+    width: 280, height: 420,
+    transparent: true, antialias: true, autoStart: true
   });
   app.view.style.pointerEvents = "auto";
   stage.appendChild(app.view);
@@ -797,363 +787,131 @@ async function setupLive2D() {
   const modelConfigPath = "./shimakaze-model/shimakaze.model3.json";
   const modelBasePath = modelConfigPath.slice(0, modelConfigPath.lastIndexOf("/") + 1);
   const modelBaseUrl = new URL(modelBasePath, window.location.href);
-  const encodeAssetPath = (path) => path
-    .split("/")
-    .map((segment) => encodeURIComponent(segment))
-    .join("/");
+
+  const encodeAssetPath = (path) => path.split("/").map(s => encodeURIComponent(s)).join("/");
   const makeAssetUrl = (path) => new URL(encodeAssetPath(path), modelBaseUrl).href;
+
   let modelConfig;
   try {
     const response = await fetch(modelConfigPath);
-    if (!response.ok) {
-      throw new Error("failed to read model config");
-    }
     modelConfig = await response.json();
   } catch (error) {
-    status.textContent = "模型配置读取失败";
+    status.textContent = "配置加载失败";
     return;
   }
 
   const { Live2DModel } = PIXI.live2d;
   let model;
-  const motionGroups = modelConfig?.FileReferences?.Motions || {};
-  const hitAreas = Array.isArray(modelConfig?.HitAreas) ? modelConfig.HitAreas : [];
-  const paramHitItems = Array.isArray(modelConfig?.Controllers?.ParamHit?.Items)
-    ? modelConfig.Controllers.ParamHit.Items
-    : [];
+  let sockDrag = null; // 【关键】确保整个作用域内只有一个 sockDrag
+
+  // 预处理配置，修复 # 路径音频加载
   const normalizedConfig = JSON.parse(JSON.stringify(modelConfig));
-  const refs = normalizedConfig?.FileReferences || {};
-  const normalizedMotions = refs?.Motions || {};
+  const refs = normalizedConfig.FileReferences || {};
+  if (refs.Moc) refs.Moc = makeAssetUrl(refs.Moc);
+  if (Array.isArray(refs.Textures)) refs.Textures = refs.Textures.map(t => makeAssetUrl(t));
+  if (refs.Physics) refs.Physics = makeAssetUrl(refs.Physics);
 
-  if (typeof refs.Moc === "string") {
-    refs.Moc = makeAssetUrl(refs.Moc);
-  }
-  if (Array.isArray(refs.Textures)) {
-    refs.Textures = refs.Textures.map((item) => (typeof item === "string" ? makeAssetUrl(item) : item));
-  }
-  if (typeof refs.Physics === "string") {
-    refs.Physics = makeAssetUrl(refs.Physics);
-  }
-  if (refs.PhysicsV2 && typeof refs.PhysicsV2.File === "string") {
-    refs.PhysicsV2.File = makeAssetUrl(refs.PhysicsV2.File);
-  }
-  Object.values(normalizedMotions).forEach((group) => {
-    if (!Array.isArray(group)) {
-      return;
+  Object.values(refs.Motions || {}).forEach(group => {
+    if (Array.isArray(group)) {
+      group.forEach(m => {
+        if (m.File) m.File = makeAssetUrl(m.File);
+        if (m.Sound) m.Sound = makeAssetUrl(m.Sound); // 这里的编码处理解决不发声
+      });
     }
-    group.forEach((motion) => {
-      if (typeof motion?.File === "string") {
-        motion.File = makeAssetUrl(motion.File);
-      }
-      if (typeof motion?.Sound === "string") {
-        motion.Sound = makeAssetUrl(motion.Sound);
-      }
-    });
   });
 
-  const normalizedConfigUrl = URL.createObjectURL(new Blob(
-    [JSON.stringify(normalizedConfig)],
-    { type: "application/json" }
-  ));
-  const preferredIdleGroup = ["Idle#1", "Idle"].find((name) => Array.isArray(motionGroups[name]) && motionGroups[name].length > 0);
-  const fallbackIdleGroup = Object.keys(motionGroups).find((name) => {
-    const group = motionGroups[name];
-    return Array.isArray(group) && group.length > 0 && group.every((motion) => motion && motion.FileLoop === true);
-  });
-  const idleMotionGroup = preferredIdleGroup || fallbackIdleGroup;
+  const configBlob = URL.createObjectURL(new Blob([JSON.stringify(normalizedConfig)], { type: "application/json" }));
 
   try {
-    model = await Live2DModel.from(normalizedConfigUrl, {
-      idleMotionGroup,
-      autoInteract: true
-    });
+    model = await Live2DModel.from(configBlob, { autoInteract: false }); // 禁用自动交互防止冲突
   } catch (error) {
     status.textContent = "模型加载失败";
     return;
   }
 
   app.stage.addChild(model);
-  app.ticker.add(() => {
-    if (typeof sockDrag !== 'undefined' && sockDrag && sockDrag.currentValue !== undefined) {
-        writeParamValueById(sockDrag.id, sockDrag.currentValue);
-    }
-  });
   status.style.display = "none";
 
-  const updateLayout = () => {
-    if (model.width > 0) {
-      const scale = Math.min(app.view.width / model.width, app.view.height / model.height) * 0.95;
-      model.scale.set(scale);
-      model.anchor.set(0.5, 1);
-      model.x = app.view.width / 2;
-      model.y = app.view.height;
-    }
-  };
-  
-  updateLayout();
-  model.on("load", updateLayout);
-  model.interactive = true;
-  model.buttonMode = true;
-
-  const orderedAreaDefs = hitAreas
-    .map((area) => ({
-      name: typeof area?.Name === "string" ? area.Name : "",
-      id: typeof area?.Id === "string" ? area.Id : "",
-      order: Number.isFinite(Number(area?.Order)) ? Number(area.Order) : 0
-    }))
-    .sort((a, b) => b.order - a.order);
-  const paramHitByArea = new Map();
-  paramHitItems.forEach((item) => {
-    if (typeof item?.HitArea === "string") {
-      paramHitByArea.set(item.HitArea, item);
+  // 【核心修复】每帧锁定锁定逻辑
+  app.ticker.add(() => {
+    if (model && sockDrag && sockDrag.id && sockDrag.currentValue !== undefined) {
+      // 绕过所有系统，直接强制写入 Core 参数值
+      model.internalModel.coreModel.setParameterValueById(sockDrag.id, sockDrag.currentValue);
     }
   });
-  const coreModel = model.internalModel?.coreModel;
-  const motionCursorByGroup = new Map();
-  const playMotionSound = (soundPath) => {
-    if (!soundPath) return;
-    const finalUrl = soundPath.startsWith("http")
-        ? soundPath
-        : `${modelBaseUrl}${soundPath}`.replace(/#/g, '%23');
 
-    const audio = new Audio(finalUrl);
-    audio.preload = "auto";
-    const playPromise = audio.play();
-
-    if (playPromise !== undefined) {
-        playPromise.catch(error => {
-        console.warn("音频播放被拦截，请先点击页面任意位置:", error);
-        });
-    }
+  const updateLayout = () => {
+    const scale = Math.min(app.view.width / model.width, app.view.height / model.height) * 0.95;
+    model.scale.set(scale);
+    model.anchor.set(0.5, 1);
+    model.x = app.view.width / 2;
+    model.y = app.view.height;
   };
+  updateLayout();
+
+  const hitAreas = Array.isArray(modelConfig.HitAreas) ? modelConfig.HitAreas : [];
+  const paramHits = Array.isArray(modelConfig.Controllers?.ParamHit?.Items) ? modelConfig.Controllers.ParamHit.Items : [];
+
+  const orderedAreaDefs = hitAreas.map(a => ({
+    name: a.Name || "", id: a.Id || "", order: a.Order || 0, Motion: a.Motion || null
+  })).sort((a, b) => b.order - a.order);
+
+  const paramHitMap = new Map();
+  paramHits.forEach(item => { if (item.HitArea) paramHitMap.set(item.HitArea, item); });
 
   const playMotionGroup = (groupName) => {
-    if (!groupName || !motionGroups[groupName] || typeof model.motion !== "function") {
-      return false;
-    }
-    const motions = motionGroups[groupName];
-    const index = Array.isArray(motions) && motions.length
-      ? ((motionCursorByGroup.get(groupName) || 0) % motions.length)
-      : undefined;
-    motionCursorByGroup.set(groupName, (motionCursorByGroup.get(groupName) || 0) + 1);
-    try {
-      model.motion(groupName, index, 3);
-    } catch {
-      model.motion(groupName);
-    }
-    if (Array.isArray(motions) && Number.isInteger(index)) {
-      playMotionSound(motions[index]?.Sound);
-    }
+    if (!groupName || !model.motion) return false;
+    // 修复音质奇怪：直接让模型播放动作，不手动调用 playMotionSound
+    // Pixi-live2d 会自动处理配置文件中映射好的音频
+    model.motion(groupName, undefined, 2); // 优先级 2 (Normal)
     return true;
   };
-  const readParamValueById = (id) => {
-    if (!coreModel || typeof id !== "string") {
-      return 0;
-    }
-    if (typeof coreModel.getParameterValueById === "function") {
-      return coreModel.getParameterValueById(id);
-    }
-    const index = getParamIndex(id);
-    return readParamValue(index);
-  };
-  const writeParamValueById = (id, value) => {
-    if (!coreModel || typeof id !== "string") {
-      return;
-    }
-    if (typeof coreModel.addParameterValueById === "function") {
-      const current = readParamValueById(id);
-      coreModel.addParameterValueById(id, value - current, 1);
-      return;
-    }
-    if (typeof coreModel.setParameterValueById === "function") {
-      coreModel.setParameterValueById(id, value, 1);
-      return;
-    }
-    const index = getParamIndex(id);
-    writeParamValue(index, value);
-  };
-  const readParamMinById = (id) => {
-    const index = getParamIndex(id);
-    return readParamMin(index);
-  };
-  const readParamMaxById = (id) => {
-    const index = getParamIndex(id);
-    return readParamMax(index);
-  };
-  const getParamIndex = (id) => {
-    if (!coreModel || typeof id !== "string") {
-      return -1;
-    }
-    if (typeof coreModel.getParameterIndexById === "function") {
-      const byId = coreModel.getParameterIndexById(id);
-      if (Number.isInteger(byId) && byId >= 0) {
-        return byId;
-      }
-    }
-    const ids = coreModel.parameters?.ids;
-    if (Array.isArray(ids)) {
-      for (let i = 0; i < ids.length; i += 1) {
-        const item = ids[i];
-        const raw = typeof item === "string"
-          ? item
-          : (item?.id || item?.s || item?._id || String(item));
-        if (raw === id || raw.endsWith(`/${id}`)) {
-          return i;
-        }
-      }
-    }
-    if (typeof coreModel.getParameterCount === "function" && typeof coreModel.getParameterId === "function") {
-      const total = coreModel.getParameterCount();
-      for (let i = 0; i < total; i += 1) {
-        const raw = String(coreModel.getParameterId(i));
-        if (raw === id || raw.endsWith(`/${id}`)) {
-          return i;
-        }
-      }
-    }
-    return -1;
-  };
-  const readParamValue = (index) => {
-    if (!coreModel || index < 0) {
-      return 0;
-    }
-    if (typeof coreModel.getParameterValueByIndex === "function") {
-      return coreModel.getParameterValueByIndex(index);
-    }
-    if (Array.isArray(coreModel.parameters?.values)) {
-      return Number(coreModel.parameters.values[index] ?? 0);
-    }
-    return 0;
-  };
-  const writeParamValue = (index, value) => {
-    if (!coreModel || index < 0) {
-      return;
-    }
-    if (typeof coreModel.setParameterValueByIndex === "function") {
-      coreModel.setParameterValueByIndex(index, value, 1);
-      return;
-    }
-    if (Array.isArray(coreModel.parameters?.values)) {
-      coreModel.parameters.values[index] = value;
-    }
-  };
-  const readParamMin = (index) => {
-    if (!coreModel || index < 0) {
-      return -1;
-    }
-    if (typeof coreModel.getParameterMinimumValue === "function") {
-      return coreModel.getParameterMinimumValue(index);
-    }
-    if (Array.isArray(coreModel.parameters?.minimumValues)) {
-      return Number(coreModel.parameters.minimumValues[index] ?? -1);
-    }
-    return -1;
-  };
-  const readParamMax = (index) => {
-    if (!coreModel || index < 0) {
-      return 1;
-    }
-    if (typeof coreModel.getParameterMaximumValue === "function") {
-      return coreModel.getParameterMaximumValue(index);
-    }
-    if (Array.isArray(coreModel.parameters?.maximumValues)) {
-      return Number(coreModel.parameters.maximumValues[index] ?? 1);
-    }
-    return 1;
-  };
-  let sockDrag = null;
-  let lastQunCutAt = 0;
 
-  const handleLive2DPointerDown = (event) => {
+  const handlePointerDown = (e) => {
     const rect = app.view.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) {
-      return;
-    }
-    const x = (event.clientX - rect.left) * (app.view.width / rect.width);
-    const y = (event.clientY - rect.top) * (app.view.height / rect.height);
-    if (typeof model.hitTest === "function") {
-      const hits = model.hitTest(x, y);
-      if (Array.isArray(hits) && hits.length) {
-        const sockArea = orderedAreaDefs.find((area) => {
-          const key = hits.includes(area.name) ? area.name : (hits.includes(area.id) ? area.id : "");
-          const paramHit = paramHitByArea.get(key);
-          return paramHit && (paramHit.HitArea === "wa_l" || paramHit.HitArea === "wa_r");
-        });
-        if (sockArea) {
-          const key = hits.includes(sockArea.name) ? sockArea.name : sockArea.id;
-          const paramHit = paramHitByArea.get(key);
-          const paramIndex = getParamIndex(paramHit?.Id);
-          if (paramIndex >= 0) {
-            sockDrag = {
-              id: paramHit.Id,
-              axis: Number(paramHit?.Axis) || 0,
-              factor: Number(paramHit?.Factor) || 0.1,
-              lastX: x,
-              lastY: y,
-              min: readParamMinById(paramHit.Id),
-              max: readParamMaxById(paramHit.Id)
-            };
-            if (typeof event.pointerId === "number" && typeof app.view.setPointerCapture === "function") {
-              try {
-                app.view.setPointerCapture(event.pointerId);
-              } catch {
-                // ignore capture failures
-              }
-            }
-          }
-        }
-        for (const area of orderedAreaDefs) {
-          if (!hits.includes(area.name) && !hits.includes(area.id)) {
-            continue;
-          }
-          const touchMotion = area.Motion || (typeof area.name === "string" ? area.name : null);
-          if (touchMotion && playMotionGroup(touchMotion)) {
-            return;
-          }
-          const isQunRelated = area.name === "cut_qun" || area.name === "qun" || area.id === "qun_f_r" || area.id === "leg_r_3";
-          if (isQunRelated && motionGroups.cut_qun) {
-            const now = Date.now();
-            if (now - lastQunCutAt < 420) {
-              return;
-            }
-            lastQunCutAt = now;
-            playMotionGroup("cut_qun");
-            return;
-          }
-        }
+    const x = (e.clientX - rect.left) * (app.view.width / rect.width);
+    const y = (e.clientY - rect.top) * (app.view.height / rect.height);
+
+    const hits = model.hitTest(x, y);
+    if (!hits.length) return;
+
+    // 1. 处理袜子拖动判定
+    const targetArea = orderedAreaDefs.find(a => hits.includes(a.name) || hits.includes(a.id));
+    if (targetArea) {
+      const pInfo = paramHitMap.get(targetArea.name) || paramHitMap.get(targetArea.id);
+      if (pInfo && (pInfo.HitArea.startsWith("wa_"))) {
+        sockDrag = {
+          id: pInfo.Id,
+          axis: pInfo.Axis || 0,
+          factor: pInfo.Factor || 0.1,
+          lastX: x, lastY: y,
+          min: model.internalModel.coreModel.getParameterMinimumValue(model.internalModel.coreModel.getParameterIndexById(pInfo.Id)),
+          max: model.internalModel.coreModel.getParameterMaximumValue(model.internalModel.coreModel.getParameterIndexById(pInfo.Id)),
+          currentValue: model.internalModel.coreModel.getParameterValueById(pInfo.Id)
+        };
       }
-    }
-    if (typeof model.tap === "function") {
-      model.tap(x, y);
+
+      // 2. 触发点击动作
+      const motionToPlay = targetArea.Motion || (targetArea.name.startsWith("touch") ? targetArea.name : null);
+      if (motionToPlay) playMotionGroup(motionToPlay);
     }
   };
-  const handleLive2DPointerMove = (event) => {
-    if (!sockDrag) {
-      return;
-    }
+
+  const handlePointerMove = (e) => {
+    if (!sockDrag) return;
     const rect = app.view.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) {
-      return;
-    }
-    const x = (event.clientX - rect.left) * (app.view.width / rect.width);
-    const y = (event.clientY - rect.top) * (app.view.height / rect.height);
+    const x = (e.clientX - rect.left) * (app.view.width / rect.width);
+    const y = (e.clientY - rect.top) * (app.view.height / rect.height);
+
     const delta = sockDrag.axis === 1 ? (y - sockDrag.lastY) : (x - sockDrag.lastX);
-    sockDrag.lastX = x;
-    sockDrag.lastY = y;
-    const current = readParamValueById(sockDrag.id);
-    const target = current + delta * sockDrag.factor;
-    const clamped = Math.max(sockDrag.min, Math.min(sockDrag.max, target));
-    writeParamValueById(sockDrag.id, clamped);
-    sockDrag.currentValue = clamped;
-  };
-  const clearSockDrag = () => {
-    sockDrag = null;
+    sockDrag.lastX = x; sockDrag.lastY = y;
+
+    sockDrag.currentValue = Math.max(sockDrag.min, Math.min(sockDrag.max, sockDrag.currentValue + delta * sockDrag.factor));
   };
 
-  app.view.addEventListener("pointerdown", handleLive2DPointerDown);
-  app.view.addEventListener("pointermove", handleLive2DPointerMove);
-  window.addEventListener("pointerup", clearSockDrag);
-  window.addEventListener("pointercancel", clearSockDrag);
+  app.view.addEventListener("pointerdown", handlePointerDown);
+  window.addEventListener("pointermove", handlePointerMove);
+  window.addEventListener("pointerup", () => { sockDrag = null; });
 }
 
 function initPage() {
