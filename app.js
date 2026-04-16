@@ -732,71 +732,123 @@ function loadExternalScript(src, marker) {
 
 async function setupLive2D() {
   if (window.matchMedia("(max-width: 900px)").matches) return;
-  // ...基础 UI 加载逻辑保持不变...
+
+  const hiddenStateKey = "aertly-live2d-hidden";
+  const shell = document.createElement("div");
+  shell.className = "live2d-shell";
+  shell.style.pointerEvents = "auto";
+
+  const stage = document.createElement("div"); // 这里定义 stage
+  stage.className = "live2d-stage";
+  stage.style.pointerEvents = "auto";
+  shell.appendChild(stage);
+
+  const status = document.createElement("div");
+  status.className = "live2d-status";
+  status.textContent = "看板娘加载中";
+  stage.appendChild(status);
+
+  const toggle = document.createElement("button");
+  toggle.className = "live2d-toggle";
+  toggle.textContent = "隐藏";
+  shell.appendChild(toggle);
+
+  if (localStorage.getItem(hiddenStateKey) === "true") {
+    shell.classList.add("is-hidden");
+    toggle.textContent = "显示";
+  }
+  document.body.appendChild(shell);
+
+  toggle.addEventListener("click", () => {
+    const hidden = shell.classList.toggle("is-hidden");
+    toggle.textContent = hidden ? "显示" : "隐藏";
+    localStorage.setItem(hiddenStateKey, hidden ? "true" : "false");
+  });
 
   try {
     await loadExternalScript("./vendor/pixi.min.js", "PIXI");
     await loadExternalScript("./vendor/live2dcubismcore.min.js", "Live2DCubismCore");
     await loadExternalScript("./vendor/pixi-live2d-cubism4.min.js");
-  } catch (e) { return; }
+  } catch (e) {
+    status.textContent = "依赖加载失败";
+    return;
+  }
 
-  const app = new PIXI.Application({ width: 280, height: 420, transparent: true, antialias: true, autoStart: true });
-  stage.appendChild(app.view);
+  const app = new PIXI.Application({
+    width: 280, height: 420, transparent: true, antialias: true, autoStart: true
+  });
+  app.view.style.pointerEvents = "auto";
+  stage.appendChild(app.view); // 确保在这里 stage 已定义
 
-  // ...模型路径与预处理逻辑...
+  const modelUrl = "./shimakaze-model/shimakaze.model3.json";
   const { Live2DModel } = PIXI.live2d;
   let model, sockDrag = null, lastQunCutAt = 0;
 
   try {
-    // 1. 恢复灵动：必须启用 autoInteract
-    model = await Live2DModel.from(configBlob, { autoInteract: true });
-  } catch (e) { return; }
+    // 开启自动交互，找回灵动的全身跟随
+    model = await Live2DModel.from(modelUrl, { autoInteract: true });
+  } catch (e) {
+    status.textContent = "模型加载失败，请检查路径";
+    return;
+  }
 
   app.stage.addChild(model);
+  status.style.display = "none";
 
-  // 2. 核心补丁：在渲染循环中强制锁定袜子，解决“动不了”的问题
+  // 【核心补丁】在 ticker 中强制锁定袜子，绕开所有动画干扰
   app.ticker.add(() => {
     if (model && sockDrag && sockDrag.id) {
-      // 避开 Index，直接用字符串 ID 强制覆盖
+      // 直接调用 coreModel 接口，避开报错的 getParameterIndexById
       model.internalModel.coreModel.setParameterValueById(sockDrag.id, sockDrag.currentValue);
     }
   });
 
-  // 3. 交互逻辑：只管袜子拖动和 Cut，不干扰视线跟随
-  const handlePointerDown = (e) => {
+  const updateLayout = () => {
+    const scale = Math.min(app.view.width / model.width, app.view.height / model.height) * 0.95;
+    model.scale.set(scale);
+    model.anchor.set(0.5, 1);
+    model.x = app.view.width / 2;
+    model.y = app.view.height;
+  };
+  updateLayout();
+
+  // 提取交互配置
+  const paramHitItems = model.modelSettings.controllers?.paramHit?.items || [];
+
+  const handleDown = (e) => {
     const rect = app.view.getBoundingClientRect();
     const x = (e.clientX - rect.left) * (app.view.width / rect.width);
     const y = (e.clientY - rect.top) * (app.view.height / rect.height);
     const hits = model.hitTest(x, y);
     if (!hits.length) return;
 
-    // 裙子判定
-    if (["cut_qun", "qun"].some(k => hits.includes(k))) {
+    // 1. 裙子逻辑
+    if (hits.some(h => ["cut_qun", "qun", "qun_f_r", "leg_r_3"].includes(h))) {
       const now = Date.now();
       if (now - lastQunCutAt > 420) {
         lastQunCutAt = now;
         model.motion("cut_qun", undefined, 3);
+        return;
       }
-      return;
     }
 
-    // 袜子判定：绕开报错的 getParameterIndexById
+    // 2. 袜子逻辑
     hits.forEach(hit => {
-      const pInfo = paramHitMap.get(hit);
-      if (pInfo && pInfo.HitArea.startsWith("wa_")) {
+      const pInfo = paramHitItems.find(item => item.hitArea === hit);
+      if (pInfo && pInfo.hitArea.startsWith("wa_")) {
         sockDrag = {
-          id: pInfo.Id,
-          axis: pInfo.Axis || 0,
-          factor: pInfo.Factor || 0.1,
+          id: pInfo.id,
+          axis: pInfo.axis || 0,
+          factor: pInfo.factor || 0.1,
           lastX: x, lastY: y,
-          currentValue: model.internalModel.coreModel.getParameterValueById(pInfo.Id),
-          min: -100, max: 100 // 设置一个安全的默认上下限
+          currentValue: model.internalModel.coreModel.getParameterValueById(pInfo.id),
+          min: -100, max: 100
         };
       }
     });
   };
 
-  const handlePointerMove = (e) => {
+  const handleMove = (e) => {
     if (!sockDrag) return;
     const rect = app.view.getBoundingClientRect();
     const x = (e.clientX - rect.left) * (app.view.width / rect.width);
@@ -806,8 +858,8 @@ async function setupLive2D() {
     sockDrag.currentValue = Math.max(sockDrag.min, Math.min(sockDrag.max, sockDrag.currentValue + delta * sockDrag.factor));
   };
 
-  app.view.addEventListener("pointerdown", handlePointerDown);
-  window.addEventListener("pointermove", handlePointerMove);
+  app.view.addEventListener("pointerdown", handleDown);
+  window.addEventListener("pointermove", handleMove);
   window.addEventListener("pointerup", () => { sockDrag = null; });
 }
 
