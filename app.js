@@ -733,33 +733,28 @@ function loadExternalScript(src, marker) {
 async function setupLive2D() {
   if (window.matchMedia("(max-width: 900px)").matches) return;
 
+  // --- 基础 UI 初始化（保持不变） ---
   const hiddenStateKey = "aertly-live2d-hidden";
   const shell = document.createElement("div");
   shell.className = "live2d-shell";
   shell.setAttribute("aria-hidden", "true");
   shell.style.pointerEvents = "auto";
-
   const stage = document.createElement("div");
   stage.className = "live2d-stage";
   stage.style.pointerEvents = "auto";
   shell.appendChild(stage);
-
   const status = document.createElement("div");
   status.className = "live2d-status";
   status.textContent = "看板娘加载中";
   stage.appendChild(status);
-
   const toggle = document.createElement("button");
   toggle.className = "live2d-toggle";
   toggle.type = "button";
   toggle.textContent = "隐藏";
   shell.appendChild(toggle);
-
   const isHidden = localStorage.getItem(hiddenStateKey) === "true";
   if (isHidden) { shell.classList.add("is-hidden"); toggle.textContent = "显示"; }
-
   document.body.appendChild(shell);
-
   toggle.addEventListener("click", () => {
     const hidden = shell.classList.toggle("is-hidden");
     toggle.textContent = hidden ? "显示" : "隐藏";
@@ -775,11 +770,8 @@ async function setupLive2D() {
     return;
   }
 
-  if (!window.PIXI || !window.PIXI.live2d) return;
-
   const app = new PIXI.Application({
-    width: 280, height: 420,
-    transparent: true, antialias: true, autoStart: true
+    width: 280, height: 420, transparent: true, antialias: true, autoStart: true
   });
   app.view.style.pointerEvents = "auto";
   stage.appendChild(app.view);
@@ -795,16 +787,16 @@ async function setupLive2D() {
     const response = await fetch(modelConfigPath);
     modelConfig = await response.json();
   } catch (error) {
-    status.textContent = "配置加载失败";
+    status.textContent = "配置失败";
     return;
   }
 
   const { Live2DModel } = PIXI.live2d;
   let model;
-  let sockDrag = null; // 确保作用域唯一
+  let sockDrag = null;
   let lastQunCutAt = 0;
 
-  // 1. 预处理配置，解决音质重叠和路径转义
+  // --- 路径预处理：解决音频 # 号导致的失真和不播放 ---
   const normalizedConfig = JSON.parse(JSON.stringify(modelConfig));
   const refs = normalizedConfig.FileReferences || {};
   if (refs.Moc) refs.Moc = makeAssetUrl(refs.Moc);
@@ -822,7 +814,8 @@ async function setupLive2D() {
   const configBlob = URL.createObjectURL(new Blob([JSON.stringify(normalizedConfig)], { type: "application/json" }));
 
   try {
-    model = await Live2DModel.from(configBlob, { autoInteract: true }); // 开启以获得鼠标跟随
+    // 【回归原厂】重新启用 autoInteract，找回所有原生的灵动待机和跟随
+    model = await Live2DModel.from(configBlob, { autoInteract: true });
   } catch (error) {
     status.textContent = "模型加载失败";
     return;
@@ -831,10 +824,11 @@ async function setupLive2D() {
   app.stage.addChild(model);
   status.style.display = "none";
 
-  // 【核心修复】袜子锁定逻辑
+  // 【核心补丁】在原厂动作渲染完后，强行插队写入袜子位移
+  // 这样既保留了呼吸动作，袜子又不会被扯回去
   app.ticker.add(() => {
     if (model && sockDrag && sockDrag.id) {
-      // 强行覆盖待机动画，锁定袜子参数
+      // 必须使用 setParameterValueById，且在 model.update 之后执行（PIXI 会自动处理顺序）
       model.internalModel.coreModel.setParameterValueById(sockDrag.id, sockDrag.currentValue);
     }
   });
@@ -853,7 +847,6 @@ async function setupLive2D() {
   const orderedAreaDefs = hitAreas.map(a => ({
     name: a.Name || "", id: a.Id || "", order: a.Order || 0, Motion: a.Motion || null
   })).sort((a, b) => b.order - a.order);
-
   const paramHitMap = new Map();
   paramHits.forEach(item => { if (item.HitArea) paramHitMap.set(item.HitArea, item); });
 
@@ -861,30 +854,30 @@ async function setupLive2D() {
     const rect = app.view.getBoundingClientRect();
     const x = (e.clientX - rect.left) * (app.view.width / rect.width);
     const y = (e.clientY - rect.top) * (app.view.height / rect.height);
-
     const hits = model.hitTest(x, y);
     if (!hits.length) return;
 
     const targetArea = orderedAreaDefs.find(a => hits.includes(a.name) || hits.includes(a.id));
     if (targetArea) {
-      // 1. 袜子拖动判定
       const pInfo = paramHitMap.get(targetArea.name) || paramHitMap.get(targetArea.id);
+      // 判定是否是袜子区域
       if (pInfo && pInfo.HitArea.startsWith("wa_")) {
         const core = model.internalModel.coreModel;
+        const pIndex = core.getParameterIndexById(pInfo.Id);
         sockDrag = {
           id: pInfo.Id,
           axis: pInfo.Axis || 0,
           factor: pInfo.Factor || 0.1,
           lastX: x, lastY: y,
-          min: core.getParameterMinimumValue(core.getParameterIndexById(pInfo.Id)),
-          max: core.getParameterMaximumValue(core.getParameterIndexById(pInfo.Id)),
+          min: core.getParameterMinimumValue(pIndex),
+          max: core.getParameterMaximumValue(pIndex),
           currentValue: core.getParameterValueById(pInfo.Id)
         };
       }
 
-      // 2. 裙子(cut_qun)逻辑补全
+      // 裙子 Cut 逻辑
       const isQun = ["cut_qun", "qun", "qun_f_r", "leg_r_3"].some(k => hits.includes(k));
-      if (isQun && model.motion) {
+      if (isQun) {
         const now = Date.now();
         if (now - lastQunCutAt > 420) {
           lastQunCutAt = now;
@@ -893,22 +886,20 @@ async function setupLive2D() {
         }
       }
 
-      // 3. 通用动作触发
-      const motion = targetArea.Motion || (targetArea.name.startsWith("touch") ? targetArea.name : null);
-      if (motion) model.motion(motion, undefined, 3);
+      // 播放点击动作
+      const mName = targetArea.Motion || (targetArea.name.startsWith("touch") ? targetArea.name : null);
+      if (mName) model.motion(mName, undefined, 3);
     }
   };
 
   const handlePointerMove = (e) => {
-    if (sockDrag) {
-      const rect = app.view.getBoundingClientRect();
-      const x = (e.clientX - rect.left) * (app.view.width / rect.width);
-      const y = (e.clientY - rect.top) * (app.view.height / rect.height);
-      const delta = sockDrag.axis === 1 ? (y - sockDrag.lastY) : (x - sockDrag.lastX);
-      sockDrag.lastX = x; sockDrag.lastY = y;
-      sockDrag.currentValue = Math.max(sockDrag.min, Math.min(sockDrag.max, sockDrag.currentValue + delta * sockDrag.factor));
-    }
-    // 鼠标跟随由 autoInteract: true 自动接管，此处无需额外代码
+    if (!sockDrag) return;
+    const rect = app.view.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (app.view.width / rect.width);
+    const y = (e.clientY - rect.top) * (app.view.height / rect.height);
+    const delta = sockDrag.axis === 1 ? (y - sockDrag.lastY) : (x - sockDrag.lastX);
+    sockDrag.lastX = x; sockDrag.lastY = y;
+    sockDrag.currentValue = Math.max(sockDrag.min, Math.min(sockDrag.max, sockDrag.currentValue + delta * sockDrag.factor));
   };
 
   app.view.addEventListener("pointerdown", handlePointerDown);
