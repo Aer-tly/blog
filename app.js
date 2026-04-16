@@ -736,14 +736,28 @@ async function setupLive2D() {
   const hiddenStateKey = "aertly-live2d-hidden";
   const shell = document.createElement("div");
   shell.className = "live2d-shell";
+  shell.setAttribute("aria-hidden", "true");
+  shell.style.pointerEvents = "auto";
+
   const stage = document.createElement("div");
   stage.className = "live2d-stage";
+  stage.style.pointerEvents = "auto";
   shell.appendChild(stage);
+
+  const status = document.createElement("div");
+  status.className = "live2d-status";
+  status.textContent = "看板娘加载中";
+  stage.appendChild(status);
+
   const toggle = document.createElement("button");
   toggle.className = "live2d-toggle";
-  toggle.textContent = localStorage.getItem(hiddenStateKey) === "true" ? "显示" : "隐藏";
-  if (localStorage.getItem(hiddenStateKey) === "true") shell.classList.add("is-hidden");
+  toggle.type = "button";
+  toggle.textContent = "隐藏";
   shell.appendChild(toggle);
+
+  const isHidden = localStorage.getItem(hiddenStateKey) === "true";
+  if (isHidden) { shell.classList.add("is-hidden"); toggle.textContent = "显示"; }
+
   document.body.appendChild(shell);
 
   toggle.addEventListener("click", () => {
@@ -756,23 +770,68 @@ async function setupLive2D() {
     await loadExternalScript("./vendor/pixi.min.js", "PIXI");
     await loadExternalScript("./vendor/live2dcubismcore.min.js", "Live2DCubismCore");
     await loadExternalScript("./vendor/pixi-live2d-cubism4.min.js");
-  } catch (e) { return; }
+  } catch (error) {
+    status.textContent = "依赖加载失败";
+    return;
+  }
+
+  if (!window.PIXI || !window.PIXI.live2d) return;
 
   const app = new PIXI.Application({
-    width: 280, height: 420, transparent: true, antialias: true, autoStart: true
+    width: 280, height: 420,
+    transparent: true, antialias: true, autoStart: true
   });
+  app.view.style.pointerEvents = "auto";
   stage.appendChild(app.view);
 
+  const modelConfigPath = "./shimakaze-model/shimakaze.model3.json";
+  const modelBasePath = modelConfigPath.slice(0, modelConfigPath.lastIndexOf("/") + 1);
+  const modelBaseUrl = new URL(modelBasePath, window.location.href);
+
+  const encodeAssetPath = (path) => path.split("/").map(s => encodeURIComponent(s)).join("/");
+  const makeAssetUrl = (path) => new URL(encodeAssetPath(path), modelBaseUrl).href;
+
+  let modelConfig;
+  try {
+    const response = await fetch(modelConfigPath);
+    modelConfig = await response.json();
+  } catch (error) {
+    status.textContent = "配置加载失败";
+    return;
+  }
+
   const { Live2DModel } = PIXI.live2d;
-  let model, lastQunCutAt = 0;
+  let model;
+  let lastQunCutAt = 0; // 记录裙子动作时间
+
+  // 预处理配置
+  const normalizedConfig = JSON.parse(JSON.stringify(modelConfig));
+  const refs = normalizedConfig.FileReferences || {};
+  if (refs.Moc) refs.Moc = makeAssetUrl(refs.Moc);
+  if (Array.isArray(refs.Textures)) refs.Textures = refs.Textures.map(t => makeAssetUrl(t));
+  if (refs.Physics) refs.Physics = makeAssetUrl(refs.Physics);
+
+  Object.values(refs.Motions || {}).forEach(group => {
+    if (Array.isArray(group)) {
+      group.forEach(m => {
+        if (m.File) m.File = makeAssetUrl(m.File);
+        if (m.Sound) m.Sound = makeAssetUrl(m.Sound);
+      });
+    }
+  });
+
+  const configBlob = URL.createObjectURL(new Blob([JSON.stringify(normalizedConfig)], { type: "application/json" }));
 
   try {
-    // 【回退核心】只开启 autoInteract，不加任何自定义参数逻辑
-    // 这样 SDK 会自动加载 Physics 和 Motion，恢复最原始的全身跟随摆动
-    model = await Live2DModel.from("./shimakaze-model/shimakaze.model3.json", { autoInteract: true });
-  } catch (e) { return; }
+    // 保持你这版正常的加载参数，不做任何变动
+    model = await Live2DModel.from(configBlob, { autoInteract: false });
+  } catch (error) {
+    status.textContent = "模型加载失败";
+    return;
+  }
 
   app.stage.addChild(model);
+  status.style.display = "none";
 
   const updateLayout = () => {
     const scale = Math.min(app.view.width / model.width, app.view.height / model.height) * 0.95;
@@ -783,28 +842,41 @@ async function setupLive2D() {
   };
   updateLayout();
 
-  app.view.addEventListener("pointerdown", (e) => {
+  const hitAreas = Array.isArray(modelConfig.HitAreas) ? modelConfig.HitAreas : [];
+  const orderedAreaDefs = hitAreas.map(a => ({
+    name: a.Name || "", id: a.Id || "", order: a.Order || 0, Motion: a.Motion || null
+  })).sort((a, b) => b.order - a.order);
+
+  const handlePointerDown = (e) => {
     const rect = app.view.getBoundingClientRect();
     const x = (e.clientX - rect.left) * (app.view.width / rect.width);
     const y = (e.clientY - rect.top) * (app.view.height / rect.height);
-    const hits = model.hitTest(x, y);
 
-    // 1. 裙子逻辑（由于是你要求的特殊逻辑，予以保留）
-    if (hits.some(h => ["cut_qun", "qun", "qun_f_r", "leg_r_3"].includes(h))) {
+    const hits = model.hitTest(x, y);
+    if (!hits.length) return;
+
+    // --- 找回 QunCut 逻辑 ---
+    const isQun = ["cut_qun", "qun", "qun_f_r", "leg_r_3"].some(k => hits.includes(k));
+    if (isQun) {
       const now = Date.now();
       if (now - lastQunCutAt > 420) {
         lastQunCutAt = now;
         model.motion("cut_qun", undefined, 3);
-        return;
+        return; // 触发特殊动作后跳出，不触发常规点击
       }
     }
 
-    // 2. 其它点击动作：直接交给 SDK 的 tap 函数处理
-    // 它会自动匹配 model3.json 里的 HitAreas 和 Motions
-    if (typeof model.tap === "function") {
-      model.tap(x, y);
+    // --- 恢复常规点击动作 ---
+    const targetArea = orderedAreaDefs.find(a => hits.includes(a.name) || hits.includes(a.id));
+    if (targetArea) {
+      const motionToPlay = targetArea.Motion || (targetArea.name.startsWith("touch") ? targetArea.name : null);
+      if (motionToPlay && model.motion) {
+        model.motion(motionToPlay, undefined, 2);
+      }
     }
-  });
+  };
+
+  app.view.addEventListener("pointerdown", handlePointerDown);
 }
 function initPage() {
   const page = document.body.dataset.page;
