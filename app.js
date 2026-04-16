@@ -875,7 +875,6 @@ async function setupLive2D() {
   app.stage.addChild(model);
   app.ticker.add(() => {
     if (typeof sockDrag !== 'undefined' && sockDrag && sockDrag.currentValue !== undefined) {
-        // 在每一帧渲染前强行锁定袜子位置，使其优先级高于 Idle 动画
         writeParamValueById(sockDrag.id, sockDrag.currentValue);
     }
   });
@@ -1108,8 +1107,6 @@ async function setupLive2D() {
             continue;
           }
           const touchMotion = area.Motion || (typeof area.name === "string" ? area.name : null);
-            ? area.name
-            : null;
           if (touchMotion && playMotionGroup(touchMotion)) {
             return;
           }
