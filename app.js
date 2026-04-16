@@ -822,13 +822,14 @@ async function setupLive2D() {
   const configBlob = URL.createObjectURL(new Blob([JSON.stringify(normalizedConfig)], { type: "application/json" }));
 
   try {
-    // 开启自动交互以获得灵敏的视线跟随
     model = await Live2DModel.from(configBlob, { autoInteract: true });
 
-    // 初始化时分层启动动作
+    // --- 强制分轨启动 ---
     if (model.internalModel.motionManager) {
-      model.motion("Idle", undefined, 1);   // 包含吉祥物的待机
-      model.motion("Idle#1", undefined, 2); // 人物主体的待机
+      // 启动轨道 0 播吉祥物
+      model.internalModel.motionManager.startMotion("Idle", 0, 1);
+      // 启动轨道 1 播人物
+      model.internalModel.motionManager.startMotion("Idle#1", 0, 2);
     }
   } catch (error) {
     status.textContent = "模型加载失败";
@@ -838,19 +839,22 @@ async function setupLive2D() {
   app.stage.addChild(model);
   status.style.display = "none";
 
-  // 在 Ticker 中维持双层待机逻辑
   app.ticker.add(() => {
     if (!model) return;
 
-    // 1. 维持原本的袜子锁定逻辑
+    // 1. 袜子锁定
     if (sockDrag && sockDrag.id && sockDrag.currentValue !== undefined) {
       model.internalModel.coreModel.setParameterValueById(sockDrag.id, sockDrag.currentValue);
     }
 
-    // 2. 自动续播逻辑：如果当前没有动作在播放，则重新踢起两层待机
-    if (!model.internalModel.motionManager.playing && !sockDrag) {
-      model.motion("Idle", undefined, 1);
-      model.motion("Idle#1", undefined, 2);
+    // 2. 检查两条轨道是否都在运行
+    if (!sockDrag) {
+      const manager = model.internalModel.motionManager;
+      // 只有当完全没有动作在播时，才重新补齐双轨
+      if (!manager.playing) {
+        manager.startMotion("Idle", 0, 1);
+        manager.startMotion("Idle#1", 0, 2);
+      }
     }
   });
 
@@ -873,12 +877,6 @@ async function setupLive2D() {
   const paramHitMap = new Map();
   paramHits.forEach(item => { if (item.HitArea) paramHitMap.set(item.HitArea, item); });
 
-  const playMotionGroup = (groupName) => {
-    if (!groupName || !model.motion) return false;
-    model.motion(groupName, undefined, 2);
-    return true;
-  };
-
   const handlePointerDown = (e) => {
     const rect = app.view.getBoundingClientRect();
     const x = (e.clientX - rect.left) * (app.view.width / rect.width);
@@ -887,12 +885,11 @@ async function setupLive2D() {
     const hits = model.hitTest(x, y);
     if (!hits.length) return;
 
-    // 裙子判定逻辑
     if (hits.some(h => ["cut_qun", "qun", "qun_f_r", "leg_r_3"].includes(h))) {
       const now = Date.now();
       if (now - lastQunCutAt > 420) {
         lastQunCutAt = now;
-        model.motion("cut_qun", undefined, 3); // 优先级 3 确保盖过待机
+        model.motion("cut_qun", undefined, 3); // 优先级 3 覆盖一切
         return;
       }
     }
@@ -912,7 +909,7 @@ async function setupLive2D() {
         };
       }
       const motionToPlay = targetArea.Motion || (targetArea.name.startsWith("touch") ? targetArea.name : null);
-      if (motionToPlay) playMotionGroup(motionToPlay);
+      if (motionToPlay) model.motion(motionToPlay, undefined, 2);
     }
   };
 
