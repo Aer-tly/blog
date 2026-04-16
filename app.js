@@ -764,24 +764,15 @@ async function setupLive2D() {
   stage.appendChild(app.view);
 
   const { Live2DModel } = PIXI.live2d;
-  let model;
-  let sockDrag = null; // 确保在 setup 作用域内
-  let lastQunCutAt = 0;
+  let model, lastQunCutAt = 0;
 
   try {
-    // 开启 autoInteract 确保基础的灵动跟随和呼吸
+    // 【回退核心】只开启 autoInteract，不加任何自定义参数逻辑
+    // 这样 SDK 会自动加载 Physics 和 Motion，恢复最原始的全身跟随摆动
     model = await Live2DModel.from("./shimakaze-model/shimakaze.model3.json", { autoInteract: true });
   } catch (e) { return; }
 
   app.stage.addChild(model);
-
-  // 【核心补丁】在 ticker 中强制覆盖，解决袜子被 Idle 动画重置的问题
-  app.ticker.add(() => {
-    if (model && sockDrag && sockDrag.id) {
-      // 每一帧都强制写入记录的 currentValue
-      model.internalModel.coreModel.setParameterValueById(sockDrag.id, sockDrag.currentValue);
-    }
-  });
 
   const updateLayout = () => {
     const scale = Math.min(app.view.width / model.width, app.view.height / model.height) * 0.95;
@@ -792,63 +783,29 @@ async function setupLive2D() {
   };
   updateLayout();
 
-  const paramHitItems = model.internalModel.settings.controllers?.paramHit?.items || [];
-
   app.view.addEventListener("pointerdown", (e) => {
     const rect = app.view.getBoundingClientRect();
     const x = (e.clientX - rect.left) * (app.view.width / rect.width);
     const y = (e.clientY - rect.top) * (app.view.height / rect.height);
     const hits = model.hitTest(x, y);
 
-    // 1. 裙子逻辑
+    // 1. 裙子逻辑（由于是你要求的特殊逻辑，予以保留）
     if (hits.some(h => ["cut_qun", "qun", "qun_f_r", "leg_r_3"].includes(h))) {
       const now = Date.now();
       if (now - lastQunCutAt > 420) {
         lastQunCutAt = now;
         model.motion("cut_qun", undefined, 3);
+        return;
       }
     }
 
-    // 2. 袜子逻辑
-    hits.forEach(hit => {
-      const pInfo = paramHitItems.find(item => item.hitArea === hit);
-      if (pInfo && pInfo.hitArea.startsWith("wa_")) {
-        sockDrag = {
-          id: pInfo.id,
-          axis: pInfo.axis || 0,
-          factor: pInfo.factor || 0.1,
-          lastX: x, lastY: y,
-          // 初始值保存当前模型数值
-          currentValue: model.internalModel.coreModel.getParameterValueById(pInfo.id),
-          min: -100, max: 100
-        };
-      }
-    });
-
-    // 3. 原厂动作找回：不要让 return 拦截，确保 tap 总能执行
+    // 2. 其它点击动作：直接交给 SDK 的 tap 函数处理
+    // 它会自动匹配 model3.json 里的 HitAreas 和 Motions
     if (typeof model.tap === "function") {
       model.tap(x, y);
     }
   });
-
-  window.addEventListener("pointermove", (e) => {
-    if (!sockDrag) return;
-    const rect = app.view.getBoundingClientRect();
-    const x = (e.clientX - rect.left) * (app.view.width / rect.width);
-    const y = (e.clientY - rect.top) * (app.view.height / rect.height);
-
-    // 计算位移增量
-    const delta = sockDrag.axis === 1 ? (y - sockDrag.lastY) : (x - sockDrag.lastX);
-    sockDrag.lastX = x;
-    sockDrag.lastY = y;
-
-    // 这里的关键是：直接修改变量中的 currentValue，而不是从模型重新 read（防止 read 到 0）
-    sockDrag.currentValue = Math.max(sockDrag.min, Math.min(sockDrag.max, sockDrag.currentValue + delta * sockDrag.factor));
-  });
-
-  window.addEventListener("pointerup", () => { sockDrag = null; });
 }
-
 function initPage() {
   const page = document.body.dataset.page;
 
