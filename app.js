@@ -801,6 +801,7 @@ async function setupLive2D() {
   }
 
   const { Live2DModel } = PIXI.live2d;
+  const modelStateKey = "aertly-shimakaze-state-v1";
   let model;
   let sockDrag = null;
   const sockMemory = new Map();
@@ -889,6 +890,39 @@ async function setupLive2D() {
     }
     return -1;
   };
+  const persistModelState = () => {
+    const params = {};
+    sockMemory.forEach((value, id) => {
+      if (Number.isFinite(value)) {
+        params[id] = value;
+      }
+    });
+    localStorage.setItem(modelStateKey, JSON.stringify({ params }));
+  };
+  const readModelState = () => {
+    try {
+      const raw = localStorage.getItem(modelStateKey);
+      if (!raw) return {};
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch {
+      return {};
+    }
+  };
+
+  const qunParamId = paramHitMap.get("qun")?.Id || "Param162";
+  const trackedParamIds = new Set(["Param3", "Param7", qunParamId]);
+  const savedState = readModelState();
+  const savedParams = savedState.params && typeof savedState.params === "object" ? savedState.params : {};
+  Object.entries(savedParams).forEach(([id, value]) => {
+    if (!trackedParamIds.has(id) || !Number.isFinite(value)) return;
+    const index = getParamIndex(id);
+    if (index < 0) return;
+    const min = coreModel.getParameterMinimumValue(index);
+    const max = coreModel.getParameterMaximumValue(index);
+    const clamped = Math.max(min, Math.min(max, value));
+    sockMemory.set(id, clamped);
+  });
 
   const resolveMotionGroup = (groupName) => {
     if (!groupName) return null;
@@ -930,6 +964,15 @@ async function setupLive2D() {
       const now = Date.now();
       if (now - lastQunCutAt > 420) {
         lastQunCutAt = now;
+        const qunIndex = getParamIndex(qunParamId);
+        if (qunIndex >= 0) {
+          const min = coreModel.getParameterMinimumValue(qunIndex);
+          const max = coreModel.getParameterMaximumValue(qunIndex);
+          const current = sockMemory.has(qunParamId) ? sockMemory.get(qunParamId) : coreModel.getParameterValueById(qunParamId);
+          const next = current > (min + max) * 0.5 ? min : max;
+          sockMemory.set(qunParamId, next);
+          persistModelState();
+        }
         playMotionGroup("cut_qun", 3);
         return;
       }
@@ -1000,6 +1043,7 @@ async function setupLive2D() {
   const finishSockDrag = () => {
     if (sockDrag && sockDrag.id && sockDrag.currentValue !== undefined) {
       sockMemory.set(sockDrag.id, sockDrag.currentValue);
+      persistModelState();
     }
     sockDrag = null;
   };
