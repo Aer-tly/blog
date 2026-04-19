@@ -200,10 +200,10 @@ function formatSiteUptime(startDateValue) {
   const totalDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
   if (totalDays < 1) {
-    return "1 澶?;
+    return "1 天";
   }
 
-  return `${totalDays + 1} 澶ー;
+  return `${totalDays + 1} 天`;
 }
 
 async function setupHomeStats() {
@@ -381,7 +381,7 @@ function setupComments() {
       bodyInput.focus();
     }
     if (submitButton) {
-      submitButton.textContent = "鍙戦€佸洖澶?;
+      submitButton.textContent = "发送回复";
     }
   }
 
