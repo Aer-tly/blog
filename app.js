@@ -731,10 +731,6 @@ function loadExternalScript(src, marker) {
 }
 async function setupLive2D() {
   if (window.matchMedia("(max-width: 900px)").matches) return;
-  if (window.__aertlyLive2DInitialized) return;
-  window.__aertlyLive2DInitialized = true;
-
-  document.querySelectorAll(".live2d-shell").forEach((node) => node.remove());
 
   const hiddenStateKey = "aertly-live2d-hidden";
   const shell = document.createElement("div");
@@ -791,7 +787,7 @@ async function setupLive2D() {
   stage.appendChild(app.view);
 
   const modelConfigPath = "./shimakaze-model/shimakaze.model3.json";
-  const normalizedConfigCacheKey = "aertly-shimakaze-normalized-config-v3";
+  const normalizedConfigCacheKey = "aertly-shimakaze-normalized-config-v1";
   const modelBasePath = modelConfigPath.slice(0, modelConfigPath.lastIndexOf("/") + 1);
   const modelBaseUrl = new URL(modelBasePath, window.location.href);
 
@@ -840,27 +836,25 @@ async function setupLive2D() {
   let lastQunCutAt = 0;
   let lockedParamUpdater = null;
 
-  const loadModelInstance = async (autoInteract) => {
-    const configBlob = URL.createObjectURL(new Blob([JSON.stringify(normalizedConfig)], { type: "application/json" }));
-    try {
-      return await Live2DModel.from(configBlob, { autoInteract });
-    } finally {
-      URL.revokeObjectURL(configBlob);
-    }
-  };
+  const configBlob = URL.createObjectURL(new Blob([JSON.stringify(normalizedConfig)], { type: "application/json" }));
 
   try {
-    model = await loadModelInstance(true);
+    model = await Live2DModel.from(configBlob, { autoInteract: true });
+
+
     if (model.internalModel.motionManager) {
-      model.internalModel.motionManager.groups.idle = "Idle";
+        model.internalModel.motionManager.groups.idle = "Idle#1";
+        model.motion("Idle#1", undefined, 1);
     }
+
   } catch (error) {
     status.textContent = "妯″瀷鍔犺浇澶辫触";
     return;
+  } finally {
+    URL.revokeObjectURL(configBlob);
   }
 
   app.stage.addChild(model);
-  model.motion("Idle", undefined, 1).catch?.(() => {});
   status.style.display = "none";
 
   const coreModel = model.internalModel?.coreModel;
@@ -887,8 +881,8 @@ async function setupLive2D() {
   }
 
   const updateLayout = () => {
-    const baseScale = Math.min(app.view.width / model.width, app.view.height / model.height);
-    model.scale.set(baseScale * 0.95);
+    const scale = Math.min(app.view.width / model.width, app.view.height / model.height) * 0.95;
+    model.scale.set(scale);
     model.anchor.set(0.5, 1);
     model.x = app.view.width / 2;
     model.y = app.view.height;
