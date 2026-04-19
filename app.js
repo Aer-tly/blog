@@ -1,4 +1,4 @@
-const content = window.blogContent;
+﻿const content = window.blogContent;
 document.documentElement.classList.add("js-ready");
 
 const DEFAULT_COMMENT_AVATAR = "./default-avatar.svg";
@@ -200,10 +200,10 @@ function formatSiteUptime(startDateValue) {
   const totalDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
   if (totalDays < 1) {
-    return "1 天";
+    return "1 澶?;
   }
 
-  return `${totalDays + 1} 天`;
+  return `${totalDays + 1} 澶ー;
 }
 
 async function setupHomeStats() {
@@ -367,21 +367,21 @@ function setupComments() {
         bodyInput.placeholder = defaultBodyPlaceholder;
       }
       if (submitButton) {
-        submitButton.textContent = "发布评论";
+        submitButton.textContent = "鍙戝竷璇勮";
       }
       return;
     }
     replyingBar.classList.remove("is-hidden");
     replyingBar.innerHTML = `
-      <span>正在回复 <strong>${comment.name}</strong></span>
-      <button type="button" class="comment-reply-cancel">取消</button>
+      <span>姝ｅ湪鍥炲 <strong>${comment.name}</strong></span>
+      <button type="button" class="comment-reply-cancel">鍙栨秷</button>
     `;
     if (bodyInput) {
-      bodyInput.placeholder = `回复 ${comment.name}...`;
+      bodyInput.placeholder = `鍥炲 ${comment.name}...`;
       bodyInput.focus();
     }
     if (submitButton) {
-      submitButton.textContent = "发送回复";
+      submitButton.textContent = "鍙戦€佸洖澶?;
     }
   }
 
@@ -419,7 +419,7 @@ function setupComments() {
 
   function createCommentMarkup(comment) {
     const replyRef = comment.replyTo
-      ? `<p class="comment-reply-ref">回复 ${comment.replyTo.name}</p>`
+      ? `<p class="comment-reply-ref">鍥炲 ${comment.replyTo.name}</p>`
       : "";
     return `
       <div class="comment-avatar-wrap">
@@ -434,7 +434,7 @@ function setupComments() {
         ${replyRef}
         <p>${comment.body}</p>
         <div class="comment-actions">
-          <button type="button" class="comment-reply-btn" data-reply-id="${comment.id}">回复</button>
+          <button type="button" class="comment-reply-btn" data-reply-id="${comment.id}">鍥炲</button>
         </div>
       </div>
     `;
@@ -477,7 +477,7 @@ function setupComments() {
     renderedComments = comments;
 
     if (!comments.length) {
-      list.innerHTML = '<p class="comment-empty">还没有评论，来留下第一条吧。</p>';
+      list.innerHTML = '<p class="comment-empty">杩樻病鏈夎瘎璁猴紝鏉ョ暀涓嬬涓€鏉″惂銆?/p>';
       return;
     }
 
@@ -745,23 +745,23 @@ async function setupLive2D() {
 
   const status = document.createElement("div");
   status.className = "live2d-status";
-  status.textContent = "看板娘加载中";
+  status.textContent = "鐪嬫澘濞樺姞杞戒腑";
   stage.appendChild(status);
 
   const toggle = document.createElement("button");
   toggle.className = "live2d-toggle";
   toggle.type = "button";
-  toggle.textContent = "隐藏";
+  toggle.textContent = "闅愯棌";
   shell.appendChild(toggle);
 
   const isHidden = localStorage.getItem(hiddenStateKey) === "true";
-  if (isHidden) { shell.classList.add("is-hidden"); toggle.textContent = "显示"; }
+  if (isHidden) { shell.classList.add("is-hidden"); toggle.textContent = "鏄剧ず"; }
 
   document.body.appendChild(shell);
 
   toggle.addEventListener("click", () => {
     const hidden = shell.classList.toggle("is-hidden");
-    toggle.textContent = hidden ? "显示" : "隐藏";
+    toggle.textContent = hidden ? "鏄剧ず" : "闅愯棌";
     localStorage.setItem(hiddenStateKey, hidden ? "true" : "false");
   });
 
@@ -772,7 +772,7 @@ async function setupLive2D() {
     ]);
     await loadExternalScript("./vendor/pixi-live2d-cubism4.min.js");
   } catch (error) {
-    status.textContent = "依赖加载失败";
+    status.textContent = "渚濊禆鍔犺浇澶辫触";
     return;
   }
 
@@ -825,39 +825,48 @@ async function setupLive2D() {
     // Hit areas and controller map still come from the original model config shape.
     modelConfig = modelConfig || JSON.parse(JSON.stringify(normalizedConfig));
   } catch (error) {
-    status.textContent = "配置加载失败";
+    status.textContent = "閰嶇疆鍔犺浇澶辫触";
     return;
   }
 
   const { Live2DModel } = PIXI.live2d;
-  let model;
+  let primaryModel;
+  let secondaryModel;
   let sockDrag = null;
   const sockMemory = new Map();
   let lastQunCutAt = 0;
   let lockedParamUpdater = null;
 
-  const configBlob = URL.createObjectURL(new Blob([JSON.stringify(normalizedConfig)], { type: "application/json" }));
+    const loadModelInstance = async (autoInteract) => {
+    const configBlob = URL.createObjectURL(new Blob([JSON.stringify(normalizedConfig)], { type: "application/json" }));
+    try {
+      return await Live2DModel.from(configBlob, { autoInteract });
+    } finally {
+      URL.revokeObjectURL(configBlob);
+    }
+  };
 
   try {
-    model = await Live2DModel.from(configBlob, { autoInteract: true });
+    [primaryModel, secondaryModel] = await Promise.all([
+      loadModelInstance(true),
+      loadModelInstance(false)
+    ]);
 
-
-    if (model.internalModel.motionManager) {
-        model.internalModel.motionManager.groups.idle = "Idle#1";
-        model.motion("Idle#1", undefined, 1);
+    if (primaryModel.internalModel.motionManager) {
+      primaryModel.internalModel.motionManager.groups.idle = "Idle#1";
     }
-
   } catch (error) {
-    status.textContent = "模型加载失败";
+    status.textContent = "妯″瀷鍔犺浇澶辫触";
     return;
-  } finally {
-    URL.revokeObjectURL(configBlob);
   }
 
-  app.stage.addChild(model);
+  app.stage.addChild(secondaryModel);
+  app.stage.addChild(primaryModel);
+  primaryModel.motion("Idle#1", undefined, 1).catch?.(() => {});
+  secondaryModel.motion("Idle", undefined, 1).catch?.(() => {});
   status.style.display = "none";
 
-  const coreModel = model.internalModel?.coreModel;
+  const coreModel = primaryModel.internalModel?.coreModel;
   const motionGroups = new Set(Object.keys(modelConfig.FileReferences?.Motions || {}));
 
   lockedParamUpdater = () => {
@@ -874,18 +883,27 @@ async function setupLive2D() {
     });
   };
 
-  if (typeof model.internalModel?.on === "function") {
-    model.internalModel.on("beforeModelUpdate", lockedParamUpdater);
+  if (typeof primaryModel.internalModel?.on === "function") {
+    primaryModel.internalModel.on("beforeModelUpdate", lockedParamUpdater);
   } else {
     app.ticker.add(lockedParamUpdater);
   }
 
-  const updateLayout = () => {
-    const scale = Math.min(app.view.width / model.width, app.view.height / model.height) * 0.95;
-    model.scale.set(scale);
-    model.anchor.set(0.5, 1);
-    model.x = app.view.width / 2;
-    model.y = app.view.height;
+    const updateLayout = () => {
+    const baseScale = Math.min(app.view.width / primaryModel.width, app.view.height / primaryModel.height);
+
+    const frontScale = baseScale * 0.95;
+    primaryModel.scale.set(frontScale);
+    primaryModel.anchor.set(0.5, 1);
+    primaryModel.x = app.view.width / 2;
+    primaryModel.y = app.view.height;
+
+    const backScale = baseScale * 0.9;
+    secondaryModel.scale.set(backScale);
+    secondaryModel.anchor.set(0.5, 1);
+    secondaryModel.x = app.view.width / 2 - 20;
+    secondaryModel.y = app.view.height + 4;
+    secondaryModel.alpha = 0.88;
   };
   updateLayout();
 
@@ -922,8 +940,8 @@ async function setupLive2D() {
 
   const playMotionGroup = (groupName, priority = 2) => {
     const resolvedGroup = resolveMotionGroup(groupName);
-    if (!resolvedGroup || !model.motion) return false;
-    model.motion(resolvedGroup, undefined, priority).catch?.(() => {});
+    if (!resolvedGroup || !primaryModel.motion) return false;
+    primaryModel.motion(resolvedGroup, undefined, priority).catch?.(() => {});
     return true;
   };
 
@@ -933,7 +951,7 @@ async function setupLive2D() {
     const x = (e.clientX - rect.left) * (app.view.width / rect.width);
     const y = (e.clientY - rect.top) * (app.view.height / rect.height);
 
-    const hits = model.hitTest(x, y);
+    const hits = primaryModel.hitTest(x, y);
     if (!hits.length) return;
 
     if (typeof app.view.setPointerCapture === "function" && e.pointerId !== undefined) {
@@ -1066,3 +1084,4 @@ function initPage() {
 }
 
 initPage();
+
