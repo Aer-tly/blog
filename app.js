@@ -1,4 +1,4 @@
-﻿const content = window.blogContent;
+const content = window.blogContent;
 document.documentElement.classList.add("js-ready");
 
 const DEFAULT_COMMENT_AVATAR = "./default-avatar.svg";
@@ -367,17 +367,17 @@ function setupComments() {
         bodyInput.placeholder = defaultBodyPlaceholder;
       }
       if (submitButton) {
-        submitButton.textContent = "鍙戝竷璇勮";
+        submitButton.textContent = "发布评论";
       }
       return;
     }
     replyingBar.classList.remove("is-hidden");
     replyingBar.innerHTML = `
-      <span>姝ｅ湪鍥炲 <strong>${comment.name}</strong></span>
-      <button type="button" class="comment-reply-cancel">鍙栨秷</button>
+      <span>正在回复 <strong>${comment.name}</strong></span>
+      <button type="button" class="comment-reply-cancel">取消</button>
     `;
     if (bodyInput) {
-      bodyInput.placeholder = `鍥炲 ${comment.name}...`;
+      bodyInput.placeholder = `回复 ${comment.name}...`;
       bodyInput.focus();
     }
     if (submitButton) {
@@ -419,7 +419,7 @@ function setupComments() {
 
   function createCommentMarkup(comment) {
     const replyRef = comment.replyTo
-      ? `<p class="comment-reply-ref">鍥炲 ${comment.replyTo.name}</p>`
+      ? `<p class="comment-reply-ref">回复 ${comment.replyTo.name}</p>`
       : "";
     return `
       <div class="comment-avatar-wrap">
@@ -434,7 +434,7 @@ function setupComments() {
         ${replyRef}
         <p>${comment.body}</p>
         <div class="comment-actions">
-          <button type="button" class="comment-reply-btn" data-reply-id="${comment.id}">鍥炲</button>
+          <button type="button" class="comment-reply-btn" data-reply-id="${comment.id}">回复</button>
         </div>
       </div>
     `;
@@ -477,7 +477,7 @@ function setupComments() {
     renderedComments = comments;
 
     if (!comments.length) {
-      list.innerHTML = '<p class="comment-empty">杩樻病鏈夎瘎璁猴紝鏉ョ暀涓嬬涓€鏉″惂銆?/p>';
+      list.innerHTML = '<p class="comment-empty">还没有评论，来留下第一条吧。</p>';
       return;
     }
 
@@ -745,23 +745,23 @@ async function setupLive2D() {
 
   const status = document.createElement("div");
   status.className = "live2d-status";
-  status.textContent = "鐪嬫澘濞樺姞杞戒腑";
+  status.textContent = "看板娘加载中";
   stage.appendChild(status);
 
   const toggle = document.createElement("button");
   toggle.className = "live2d-toggle";
   toggle.type = "button";
-  toggle.textContent = "闅愯棌";
+  toggle.textContent = "隐藏";
   shell.appendChild(toggle);
 
   const isHidden = localStorage.getItem(hiddenStateKey) === "true";
-  if (isHidden) { shell.classList.add("is-hidden"); toggle.textContent = "鏄剧ず"; }
+  if (isHidden) { shell.classList.add("is-hidden"); toggle.textContent = "显示"; }
 
   document.body.appendChild(shell);
 
   toggle.addEventListener("click", () => {
     const hidden = shell.classList.toggle("is-hidden");
-    toggle.textContent = hidden ? "鏄剧ず" : "闅愯棌";
+    toggle.textContent = hidden ? "显示" : "隐藏";
     localStorage.setItem(hiddenStateKey, hidden ? "true" : "false");
   });
 
@@ -772,7 +772,7 @@ async function setupLive2D() {
     ]);
     await loadExternalScript("./vendor/pixi-live2d-cubism4.min.js");
   } catch (error) {
-    status.textContent = "渚濊禆鍔犺浇澶辫触";
+    status.textContent = "依赖加载失败";
     return;
   }
 
@@ -825,7 +825,7 @@ async function setupLive2D() {
     // Hit areas and controller map still come from the original model config shape.
     modelConfig = modelConfig || JSON.parse(JSON.stringify(normalizedConfig));
   } catch (error) {
-    status.textContent = "閰嶇疆鍔犺浇澶辫触";
+    status.textContent = "配置加载失败";
     return;
   }
 
@@ -848,7 +848,7 @@ async function setupLive2D() {
     }
 
   } catch (error) {
-    status.textContent = "妯″瀷鍔犺浇澶辫触";
+    status.textContent = "模型加载失败";
     return;
   } finally {
     URL.revokeObjectURL(configBlob);
@@ -1066,4 +1066,3 @@ function initPage() {
 }
 
 initPage();
-
