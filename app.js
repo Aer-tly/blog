@@ -278,13 +278,13 @@ async function setupHomeStats() {
     return count ?? 0;
   }
 
-  const remoteViews = await syncRemoteViews();
-  if (remoteViews !== null) {
-    viewsEl.textContent = String(remoteViews);
-    return;
-  }
-
+  // Show a fast local value immediately, then reconcile with remote in background.
   viewsEl.textContent = String(ensureLocalView());
+  syncRemoteViews().then((remoteViews) => {
+    if (remoteViews !== null) {
+      viewsEl.textContent = String(remoteViews);
+    }
+  });
 }
 
 function setupComments() {
@@ -766,8 +766,10 @@ async function setupLive2D() {
   });
 
   try {
-    await loadExternalScript("./vendor/pixi.min.js", "PIXI");
-    await loadExternalScript("./vendor/live2dcubismcore.min.js", "Live2DCubismCore");
+    await Promise.all([
+      loadExternalScript("./vendor/pixi.min.js", "PIXI"),
+      loadExternalScript("./vendor/live2dcubismcore.min.js", "Live2DCubismCore")
+    ]);
     await loadExternalScript("./vendor/pixi-live2d-cubism4.min.js");
   } catch (error) {
     status.textContent = "依赖加载失败";
@@ -785,6 +787,7 @@ async function setupLive2D() {
   stage.appendChild(app.view);
 
   const modelConfigPath = "./shimakaze-model/shimakaze.model3.json";
+  const normalizedConfigCacheKey = "aertly-shimakaze-normalized-config-v1";
   const modelBasePath = modelConfigPath.slice(0, modelConfigPath.lastIndexOf("/") + 1);
   const modelBaseUrl = new URL(modelBasePath, window.location.href);
 
@@ -792,9 +795,35 @@ async function setupLive2D() {
   const makeAssetUrl = (path) => new URL(encodeAssetPath(path), modelBaseUrl).href;
 
   let modelConfig;
+  let normalizedConfig;
   try {
-    const response = await fetch(modelConfigPath);
-    modelConfig = await response.json();
+    const cachedNormalized = sessionStorage.getItem(normalizedConfigCacheKey);
+    if (cachedNormalized) {
+      normalizedConfig = JSON.parse(cachedNormalized);
+    } else {
+      const response = await fetch(modelConfigPath, { cache: "force-cache" });
+      modelConfig = await response.json();
+
+      normalizedConfig = JSON.parse(JSON.stringify(modelConfig));
+      const refs = normalizedConfig.FileReferences || {};
+      if (refs.Moc) refs.Moc = makeAssetUrl(refs.Moc);
+      if (Array.isArray(refs.Textures)) refs.Textures = refs.Textures.map(t => makeAssetUrl(t));
+      if (refs.Physics) refs.Physics = makeAssetUrl(refs.Physics);
+
+      Object.values(refs.Motions || {}).forEach(group => {
+        if (Array.isArray(group)) {
+          group.forEach(m => {
+            if (m.File) m.File = makeAssetUrl(m.File);
+            if (m.Sound) m.Sound = makeAssetUrl(m.Sound);
+          });
+        }
+      });
+
+      sessionStorage.setItem(normalizedConfigCacheKey, JSON.stringify(normalizedConfig));
+    }
+
+    // Hit areas and controller map still come from the original model config shape.
+    modelConfig = modelConfig || JSON.parse(JSON.stringify(normalizedConfig));
   } catch (error) {
     status.textContent = "配置加载失败";
     return;
@@ -806,21 +835,6 @@ async function setupLive2D() {
   const sockMemory = new Map();
   let lastQunCutAt = 0;
   let lockedParamUpdater = null;
-
-  const normalizedConfig = JSON.parse(JSON.stringify(modelConfig));
-  const refs = normalizedConfig.FileReferences || {};
-  if (refs.Moc) refs.Moc = makeAssetUrl(refs.Moc);
-  if (Array.isArray(refs.Textures)) refs.Textures = refs.Textures.map(t => makeAssetUrl(t));
-  if (refs.Physics) refs.Physics = makeAssetUrl(refs.Physics);
-
-  Object.values(refs.Motions || {}).forEach(group => {
-    if (Array.isArray(group)) {
-      group.forEach(m => {
-        if (m.File) m.File = makeAssetUrl(m.File);
-        if (m.Sound) m.Sound = makeAssetUrl(m.Sound);
-      });
-    }
-  });
 
   const configBlob = URL.createObjectURL(new Blob([JSON.stringify(normalizedConfig)], { type: "application/json" }));
 
@@ -836,6 +850,8 @@ async function setupLive2D() {
   } catch (error) {
     status.textContent = "模型加载失败";
     return;
+  } finally {
+    URL.revokeObjectURL(configBlob);
   }
 
   app.stage.addChild(model);
@@ -1006,6 +1022,19 @@ async function setupLive2D() {
   window.addEventListener("pointerup", finishSockDrag);
   window.addEventListener("pointercancel", finishSockDrag);
 }
+
+function setupLive2DDeferred() {
+  if ("requestIdleCallback" in window) {
+    window.requestIdleCallback(() => {
+      setupLive2D();
+    }, { timeout: 1200 });
+    return;
+  }
+  setTimeout(() => {
+    setupLive2D();
+  }, 320);
+}
+
 function initPage() {
   const page = document.body.dataset.page;
 
@@ -1033,7 +1062,7 @@ function initPage() {
   setupBgm();
   setupComments();
   setupReveal();
-  setupLive2D();
+  setupLive2DDeferred();
 }
 
 initPage();
