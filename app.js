@@ -803,6 +803,7 @@ async function setupLive2D() {
   const { Live2DModel } = PIXI.live2d;
   let model;
   let sockDrag = null;
+  const sockMemory = new Map();
   let lastQunCutAt = 0;
   let lockedParamUpdater = null;
 
@@ -844,13 +845,17 @@ async function setupLive2D() {
   const motionGroups = new Set(Object.keys(modelConfig.FileReferences?.Motions || {}));
 
   lockedParamUpdater = () => {
-    if (!coreModel || !sockDrag || !sockDrag.id || sockDrag.currentValue === undefined) {
+    if (!coreModel) {
       return;
     }
 
-    // Apply the drag-controlled sock parameter after motions/physics are evaluated
-    // so the original controller behavior is preserved instead of being overwritten.
-    coreModel.setParameterValueById(sockDrag.id, sockDrag.currentValue);
+    // Keep memorized sock values locked so they do not bounce back after pointer release.
+    if (sockDrag && sockDrag.id && sockDrag.currentValue !== undefined) {
+      sockMemory.set(sockDrag.id, sockDrag.currentValue);
+    }
+    sockMemory.forEach((value, id) => {
+      coreModel.setParameterValueById(id, value);
+    });
   };
 
   if (typeof model.internalModel?.on === "function") {
@@ -939,16 +944,17 @@ async function setupLive2D() {
       const pInfo = paramHitMap.get(directSockHit);
       const index = getParamIndex(pInfo.Id);
       if (index >= 0) {
+        const memorized = sockMemory.get(pInfo.Id);
         sockDrag = {
           id: pInfo.Id,
           axis: pInfo.Axis || 0,
-          factor: pInfo.Factor || 0.1,
+          factor: (pInfo.Factor || 0.1) * 2.2,
           releaseType: pInfo.ReleaseType || 0,
           lockParam: pInfo.LockParam !== false,
           lastX: x, lastY: y,
           min: coreModel.getParameterMinimumValue(index),
           max: coreModel.getParameterMaximumValue(index),
-          currentValue: coreModel.getParameterValueById(pInfo.Id)
+          currentValue: memorized ?? coreModel.getParameterValueById(pInfo.Id)
         };
       }
       return;
@@ -960,16 +966,17 @@ async function setupLive2D() {
       if (pInfo && (pInfo.HitArea.startsWith("wa_"))) {
         const index = getParamIndex(pInfo.Id);
         if (index < 0) return;
+        const memorized = sockMemory.get(pInfo.Id);
         sockDrag = {
           id: pInfo.Id,
           axis: pInfo.Axis || 0,
-          factor: pInfo.Factor || 0.1,
+          factor: (pInfo.Factor || 0.1) * 2.2,
           releaseType: pInfo.ReleaseType || 0,
           lockParam: pInfo.LockParam !== false,
           lastX: x, lastY: y,
           min: coreModel.getParameterMinimumValue(index),
           max: coreModel.getParameterMaximumValue(index),
-          currentValue: coreModel.getParameterValueById(pInfo.Id)
+          currentValue: memorized ?? coreModel.getParameterValueById(pInfo.Id)
         };
         return;
       }
@@ -990,7 +997,14 @@ async function setupLive2D() {
 
   app.view.addEventListener("pointerdown", handlePointerDown);
   window.addEventListener("pointermove", handlePointerMove);
-  window.addEventListener("pointerup", () => { sockDrag = null; });
+  const finishSockDrag = () => {
+    if (sockDrag && sockDrag.id && sockDrag.currentValue !== undefined) {
+      sockMemory.set(sockDrag.id, sockDrag.currentValue);
+    }
+    sockDrag = null;
+  };
+  window.addEventListener("pointerup", finishSockDrag);
+  window.addEventListener("pointercancel", finishSockDrag);
 }
 function initPage() {
   const page = document.body.dataset.page;
