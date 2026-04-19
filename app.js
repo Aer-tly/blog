@@ -781,6 +781,7 @@ async function setupLive2D() {
     transparent: true, antialias: true, autoStart: true
   });
   app.view.style.pointerEvents = "auto";
+  app.view.style.touchAction = "none";
   stage.appendChild(app.view);
 
   const modelConfigPath = "./shimakaze-model/shimakaze.model3.json";
@@ -803,6 +804,7 @@ async function setupLive2D() {
   let model;
   let sockDrag = null;
   let lastQunCutAt = 0;
+  let lockedParamUpdater = null;
 
   const normalizedConfig = JSON.parse(JSON.stringify(modelConfig));
   const refs = normalizedConfig.FileReferences || {};
@@ -824,8 +826,7 @@ async function setupLive2D() {
   try {
     model = await Live2DModel.from(configBlob, { autoInteract: true });
 
-    // 【找回待机核心】手动触发 Idle 动画循环
-    // 优先级 1 (Idle) 会让它在没有点击时自动循环播放待机动作
+
     if (model.internalModel.motionManager) {
         model.internalModel.motionManager.groups.idle = "Idle#1";
         model.motion("Idle#1", undefined, 1);
@@ -839,11 +840,24 @@ async function setupLive2D() {
   app.stage.addChild(model);
   status.style.display = "none";
 
-  app.ticker.add(() => {
-    if (model && sockDrag && sockDrag.id && sockDrag.currentValue !== undefined) {
-      model.internalModel.coreModel.setParameterValueById(sockDrag.id, sockDrag.currentValue);
+  const coreModel = model.internalModel?.coreModel;
+  const motionGroups = new Set(Object.keys(modelConfig.FileReferences?.Motions || {}));
+
+  lockedParamUpdater = () => {
+    if (!coreModel || !sockDrag || !sockDrag.id || sockDrag.currentValue === undefined) {
+      return;
     }
-  });
+
+    // Apply the drag-controlled sock parameter after motions/physics are evaluated
+    // so the original controller behavior is preserved instead of being overwritten.
+    coreModel.setParameterValueById(sockDrag.id, sockDrag.currentValue);
+  };
+
+  if (typeof model.internalModel?.on === "function") {
+    model.internalModel.on("beforeModelUpdate", lockedParamUpdater);
+  } else {
+    app.ticker.add(lockedParamUpdater);
+  }
 
   const updateLayout = () => {
     const scale = Math.min(app.view.width / model.width, app.view.height / model.height) * 0.95;
@@ -864,13 +878,29 @@ async function setupLive2D() {
   const paramHitMap = new Map();
   paramHits.forEach(item => { if (item.HitArea) paramHitMap.set(item.HitArea, item); });
 
-  const playMotionGroup = (groupName) => {
-    if (!groupName || !model.motion) return false;
-    model.motion(groupName, undefined, 2);
+  const resolveMotionGroup = (groupName) => {
+    if (!groupName) return null;
+    if (motionGroups.has(groupName)) return groupName;
+
+    const normalized = String(groupName).toLowerCase();
+    for (const key of motionGroups) {
+      if (key.toLowerCase() === normalized) return key;
+    }
+    for (const key of motionGroups) {
+      if (key.toLowerCase().startsWith(normalized)) return key;
+    }
+    return null;
+  };
+
+  const playMotionGroup = (groupName, priority = 2) => {
+    const resolvedGroup = resolveMotionGroup(groupName);
+    if (!resolvedGroup || !model.motion) return false;
+    model.motion(resolvedGroup, undefined, priority).catch?.(() => {});
     return true;
   };
 
   const handlePointerDown = (e) => {
+    e.preventDefault();
     const rect = app.view.getBoundingClientRect();
     const x = (e.clientX - rect.left) * (app.view.width / rect.width);
     const y = (e.clientY - rect.top) * (app.view.height / rect.height);
@@ -878,11 +908,17 @@ async function setupLive2D() {
     const hits = model.hitTest(x, y);
     if (!hits.length) return;
 
+    if (typeof app.view.setPointerCapture === "function" && e.pointerId !== undefined) {
+      try {
+        app.view.setPointerCapture(e.pointerId);
+      } catch {}
+    }
+
     if (hits.some(h => ["cut_qun", "qun", "qun_f_r", "leg_r_3"].includes(h))) {
       const now = Date.now();
       if (now - lastQunCutAt > 420) {
         lastQunCutAt = now;
-        model.motion("cut_qun", undefined, 3);
+        playMotionGroup("cut_qun", 3);
         return;
       }
     }
@@ -895,11 +931,14 @@ async function setupLive2D() {
           id: pInfo.Id,
           axis: pInfo.Axis || 0,
           factor: pInfo.Factor || 0.1,
+          releaseType: pInfo.ReleaseType || 0,
+          lockParam: pInfo.LockParam !== false,
           lastX: x, lastY: y,
-          min: model.internalModel.coreModel.getParameterMinimumValue(model.internalModel.coreModel.getParameterIndexById(pInfo.Id)),
-          max: model.internalModel.coreModel.getParameterMaximumValue(model.internalModel.coreModel.getParameterIndexById(pInfo.Id)),
-          currentValue: model.internalModel.coreModel.getParameterValueById(pInfo.Id)
+          min: coreModel.getParameterMinimumValue(coreModel.getParameterIndexById(pInfo.Id)),
+          max: coreModel.getParameterMaximumValue(coreModel.getParameterIndexById(pInfo.Id)),
+          currentValue: coreModel.getParameterValueById(pInfo.Id)
         };
+        return;
       }
       const motionToPlay = targetArea.Motion || (targetArea.name.startsWith("touch") ? targetArea.name : null);
       if (motionToPlay) playMotionGroup(motionToPlay);
