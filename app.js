@@ -877,6 +877,13 @@ async function setupLive2D() {
 
   const paramHitMap = new Map();
   paramHits.forEach(item => { if (item.HitArea) paramHitMap.set(item.HitArea, item); });
+  const getParamIndex = (paramId) => {
+    if (!coreModel || !paramId) return -1;
+    if (typeof coreModel.getParameterIndex === "function") {
+      return coreModel.getParameterIndex(paramId);
+    }
+    return -1;
+  };
 
   const resolveMotionGroup = (groupName) => {
     if (!groupName) return null;
@@ -923,10 +930,15 @@ async function setupLive2D() {
       }
     }
 
-    const targetArea = orderedAreaDefs.find(a => hits.includes(a.name) || hits.includes(a.id));
-    if (targetArea) {
-      const pInfo = paramHitMap.get(targetArea.name) || paramHitMap.get(targetArea.id);
-      if (pInfo && (pInfo.HitArea.startsWith("wa_"))) {
+    // Sock dragging should have priority even when other hit areas overlap.
+    const directSockHit = hits.find(h => {
+      const p = paramHitMap.get(h);
+      return p && typeof p.HitArea === "string" && p.HitArea.startsWith("wa_");
+    });
+    if (directSockHit) {
+      const pInfo = paramHitMap.get(directSockHit);
+      const index = getParamIndex(pInfo.Id);
+      if (index >= 0) {
         sockDrag = {
           id: pInfo.Id,
           axis: pInfo.Axis || 0,
@@ -934,8 +946,29 @@ async function setupLive2D() {
           releaseType: pInfo.ReleaseType || 0,
           lockParam: pInfo.LockParam !== false,
           lastX: x, lastY: y,
-          min: coreModel.getParameterMinimumValue(coreModel.getParameterIndexById(pInfo.Id)),
-          max: coreModel.getParameterMaximumValue(coreModel.getParameterIndexById(pInfo.Id)),
+          min: coreModel.getParameterMinimumValue(index),
+          max: coreModel.getParameterMaximumValue(index),
+          currentValue: coreModel.getParameterValueById(pInfo.Id)
+        };
+      }
+      return;
+    }
+
+    const targetArea = orderedAreaDefs.find(a => hits.includes(a.name) || hits.includes(a.id));
+    if (targetArea) {
+      const pInfo = paramHitMap.get(targetArea.name) || paramHitMap.get(targetArea.id);
+      if (pInfo && (pInfo.HitArea.startsWith("wa_"))) {
+        const index = getParamIndex(pInfo.Id);
+        if (index < 0) return;
+        sockDrag = {
+          id: pInfo.Id,
+          axis: pInfo.Axis || 0,
+          factor: pInfo.Factor || 0.1,
+          releaseType: pInfo.ReleaseType || 0,
+          lockParam: pInfo.LockParam !== false,
+          lastX: x, lastY: y,
+          min: coreModel.getParameterMinimumValue(index),
+          max: coreModel.getParameterMaximumValue(index),
           currentValue: coreModel.getParameterValueById(pInfo.Id)
         };
         return;
