@@ -731,6 +731,10 @@ function loadExternalScript(src, marker) {
 }
 async function setupLive2D() {
   if (window.matchMedia("(max-width: 900px)").matches) return;
+  if (window.__aertlyLive2DInitialized) return;
+  window.__aertlyLive2DInitialized = true;
+
+  document.querySelectorAll(".live2d-shell").forEach((node) => node.remove());
 
   const hiddenStateKey = "aertly-live2d-hidden";
   const shell = document.createElement("div");
@@ -787,7 +791,7 @@ async function setupLive2D() {
   stage.appendChild(app.view);
 
   const modelConfigPath = "./shimakaze-model/shimakaze.model3.json";
-  const normalizedConfigCacheKey = "aertly-shimakaze-normalized-config-v1";
+  const normalizedConfigCacheKey = "aertly-shimakaze-normalized-config-v3";
   const modelBasePath = modelConfigPath.slice(0, modelConfigPath.lastIndexOf("/") + 1);
   const modelBaseUrl = new URL(modelBasePath, window.location.href);
 
@@ -830,14 +834,13 @@ async function setupLive2D() {
   }
 
   const { Live2DModel } = PIXI.live2d;
-  let primaryModel;
-  let secondaryModel;
+  let model;
   let sockDrag = null;
   const sockMemory = new Map();
   let lastQunCutAt = 0;
   let lockedParamUpdater = null;
 
-    const loadModelInstance = async (autoInteract) => {
+  const loadModelInstance = async (autoInteract) => {
     const configBlob = URL.createObjectURL(new Blob([JSON.stringify(normalizedConfig)], { type: "application/json" }));
     try {
       return await Live2DModel.from(configBlob, { autoInteract });
@@ -847,26 +850,20 @@ async function setupLive2D() {
   };
 
   try {
-    [primaryModel, secondaryModel] = await Promise.all([
-      loadModelInstance(true),
-      loadModelInstance(false)
-    ]);
-
-    if (primaryModel.internalModel.motionManager) {
-      primaryModel.internalModel.motionManager.groups.idle = "Idle#1";
+    model = await loadModelInstance(true);
+    if (model.internalModel.motionManager) {
+      model.internalModel.motionManager.groups.idle = "Idle";
     }
   } catch (error) {
     status.textContent = "妯″瀷鍔犺浇澶辫触";
     return;
   }
 
-  app.stage.addChild(secondaryModel);
-  app.stage.addChild(primaryModel);
-  primaryModel.motion("Idle#1", undefined, 1).catch?.(() => {});
-  secondaryModel.motion("Idle", undefined, 1).catch?.(() => {});
+  app.stage.addChild(model);
+  model.motion("Idle", undefined, 1).catch?.(() => {});
   status.style.display = "none";
 
-  const coreModel = primaryModel.internalModel?.coreModel;
+  const coreModel = model.internalModel?.coreModel;
   const motionGroups = new Set(Object.keys(modelConfig.FileReferences?.Motions || {}));
 
   lockedParamUpdater = () => {
@@ -883,27 +880,18 @@ async function setupLive2D() {
     });
   };
 
-  if (typeof primaryModel.internalModel?.on === "function") {
-    primaryModel.internalModel.on("beforeModelUpdate", lockedParamUpdater);
+  if (typeof model.internalModel?.on === "function") {
+    model.internalModel.on("beforeModelUpdate", lockedParamUpdater);
   } else {
     app.ticker.add(lockedParamUpdater);
   }
 
-    const updateLayout = () => {
-    const baseScale = Math.min(app.view.width / primaryModel.width, app.view.height / primaryModel.height);
-
-    const frontScale = baseScale * 0.95;
-    primaryModel.scale.set(frontScale);
-    primaryModel.anchor.set(0.5, 1);
-    primaryModel.x = app.view.width / 2;
-    primaryModel.y = app.view.height;
-
-    const backScale = baseScale * 0.9;
-    secondaryModel.scale.set(backScale);
-    secondaryModel.anchor.set(0.5, 1);
-    secondaryModel.x = app.view.width / 2 - 20;
-    secondaryModel.y = app.view.height + 4;
-    secondaryModel.alpha = 0.88;
+  const updateLayout = () => {
+    const baseScale = Math.min(app.view.width / model.width, app.view.height / model.height);
+    model.scale.set(baseScale * 0.95);
+    model.anchor.set(0.5, 1);
+    model.x = app.view.width / 2;
+    model.y = app.view.height;
   };
   updateLayout();
 
@@ -940,8 +928,8 @@ async function setupLive2D() {
 
   const playMotionGroup = (groupName, priority = 2) => {
     const resolvedGroup = resolveMotionGroup(groupName);
-    if (!resolvedGroup || !primaryModel.motion) return false;
-    primaryModel.motion(resolvedGroup, undefined, priority).catch?.(() => {});
+    if (!resolvedGroup || !model.motion) return false;
+    model.motion(resolvedGroup, undefined, priority).catch?.(() => {});
     return true;
   };
 
@@ -951,7 +939,7 @@ async function setupLive2D() {
     const x = (e.clientX - rect.left) * (app.view.width / rect.width);
     const y = (e.clientY - rect.top) * (app.view.height / rect.height);
 
-    const hits = primaryModel.hitTest(x, y);
+    const hits = model.hitTest(x, y);
     if (!hits.length) return;
 
     if (typeof app.view.setPointerCapture === "function" && e.pointerId !== undefined) {
