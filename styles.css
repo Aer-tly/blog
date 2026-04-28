@@ -637,6 +637,11 @@ input {
   padding: 18px;
 }
 
+.post-card.compact .card-cover {
+  border-radius: 12px;
+}
+
+
 .post-card:hover {
   transform: translateY(-4px);
   border-color: rgba(109, 127, 155, 0.34);
@@ -647,6 +652,22 @@ input {
   display: grid;
   gap: 12px;
 }
+
+.card-cover {
+  margin: -6px -6px 4px;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(127, 145, 170, 0.16);
+  background: rgba(236, 243, 252, 0.64);
+}
+
+.card-cover img {
+  width: 100%;
+  display: block;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+}
+
 
 .post-card__meta,
 .project-item__meta {
@@ -826,6 +847,11 @@ input {
   box-shadow: var(--shadow);
   background: var(--surface);
 }
+
+.project-board .project-item .card-cover {
+  margin: -4px -4px 6px;
+}
+
 
 
 .about-page-grid {
@@ -1043,6 +1069,26 @@ input {
   color: var(--muted);
   line-height: 2.02;
   font-size: 1.04rem;
+}
+
+.content-image-block {
+  margin: 10px 0 22px;
+}
+
+.content-image {
+  width: 100%;
+  max-width: 100%;
+  display: block;
+  border-radius: 16px;
+  border: 1px solid rgba(127, 145, 170, 0.16);
+  box-shadow: 0 14px 30px rgba(92, 111, 139, 0.12);
+}
+
+.content-image-block figcaption {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  opacity: 0.86;
 }
 
 .comment-section {

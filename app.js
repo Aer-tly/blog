@@ -1,4 +1,4 @@
-const content = window.blogContent;
+﻿const content = window.blogContent;
 document.documentElement.classList.add("js-ready");
 
 const DEFAULT_COMMENT_AVATAR = "./default-avatar.svg";
@@ -11,12 +11,65 @@ function renderTags(items) {
   return items.map((item) => `<span>${item}</span>`).join("");
 }
 
+function renderMathContent(container) {
+  const run = () => {
+    if (!container || typeof window.renderMathInElement !== "function") {
+      return false;
+    }
+    window.renderMathInElement(container, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "\\(", right: "\\)", display: false },
+        { left: "\\[", right: "\\]", display: true },
+        { left: "$", right: "$", display: false }
+      ],
+      throwOnError: false
+    });
+    return true;
+  };
+
+  if (!run()) {
+    window.addEventListener("load", () => {
+      run();
+    }, { once: true });
+    setTimeout(run, 260);
+  }
+}
+
+function renderRichParagraph(paragraph) {
+  const raw = String(paragraph ?? "").trim();
+  const imageMatch = raw.match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
+  if (imageMatch) {
+    const alt = imageMatch[1].trim() || "插图";
+    const src = imageMatch[2].trim();
+    return `
+      <figure class="content-image-block">
+        <img class="content-image" src="${src}" alt="${alt}" loading="lazy">
+        <figcaption>${alt}</figcaption>
+      </figure>
+    `;
+  }
+  return `<p>${paragraph}</p>`;
+}
+
+function renderSectionParagraphs(paragraphs) {
+  return (paragraphs || []).map((paragraph) => renderRichParagraph(paragraph)).join("");
+}
+
 function createPostCard(post, compact = false) {
   const article = document.createElement("article");
   article.className = compact ? "post-card compact" : "post-card";
   article.setAttribute("data-reveal", "");
+  const coverBlock = post.cover
+    ? `
+      <div class="card-cover">
+        <img src="${post.cover}" alt="${post.coverAlt || post.title || "封面"}" loading="lazy" referrerpolicy="no-referrer">
+      </div>
+    `
+    : "";
   article.innerHTML = `
     <a class="card-link" href="./post.html?slug=${post.slug}">
+      ${coverBlock}
       <div class="post-card__meta">
         <span>${post.category}</span>
         <span>${post.date}</span>
@@ -36,8 +89,16 @@ function createProjectCard(project) {
   const wrapper = document.createElement("article");
   wrapper.className = "project-item";
   wrapper.setAttribute("data-reveal", "");
+  const coverBlock = project.cover
+    ? `
+      <div class="card-cover">
+        <img src="${project.cover}" alt="${project.coverAlt || project.title || "封面"}" loading="lazy" referrerpolicy="no-referrer">
+      </div>
+    `
+    : "";
   wrapper.innerHTML = `
     <a class="card-link" href="./note.html?slug=${project.slug}">
+      ${coverBlock}
       <div class="project-item__meta">
         <span>${project.status}</span>
         <span>${project.year}</span>
@@ -151,13 +212,14 @@ function renderPost() {
     article.setAttribute("data-reveal", "");
     article.innerHTML = `
       <h2>${section.heading}</h2>
-      ${section.paragraphs.map((paragraph) => `<p>${paragraph}</p>`).join("")}
+      ${renderSectionParagraphs(section.paragraphs)}
     `;
     postContent.appendChild(article);
   });
 
   const relatedList = byId("related-posts");
   related.forEach((item) => relatedList.appendChild(createPostCard(item, true)));
+  renderMathContent(postContent);
 }
 
 function renderNote() {
@@ -180,13 +242,14 @@ function renderNote() {
     article.setAttribute("data-reveal", "");
     article.innerHTML = `
       <h2>${section.heading}</h2>
-      ${section.paragraphs.map((paragraph) => `<p>${paragraph}</p>`).join("")}
+      ${renderSectionParagraphs(section.paragraphs)}
     `;
     noteContent.appendChild(article);
   });
 
   const relatedList = byId("related-notes");
   related.forEach((item) => relatedList.appendChild(createProjectCard(item)));
+  renderMathContent(noteContent);
 }
 
 function formatSiteUptime(startDateValue) {
@@ -278,7 +341,6 @@ async function setupHomeStats() {
     return count ?? 0;
   }
 
-  // Show a fast local value immediately, then reconcile with remote in background.
   viewsEl.textContent = String(ensureLocalView());
   syncRemoteViews().then((remoteViews) => {
     if (remoteViews !== null) {
@@ -745,7 +807,7 @@ async function setupLive2D() {
 
   const status = document.createElement("div");
   status.className = "live2d-status";
-  status.textContent = "看板娘加载中";
+  status.textContent = "看板娘加载中...";
   stage.appendChild(status);
 
   const toggle = document.createElement("button");
