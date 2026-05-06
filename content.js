@@ -22,10 +22,6 @@
       summary: "施工中",
       // 列表封面（可选）：填图床 URL 或相对路径
       // cover: "https://your-image-host.com/post-cover.jpg",
-      // 封面描述（可选）
-      // coverAlt: "夜行列车的窗外",
-      // 标签数组
-      // 可自由增删，用于显示关键词
       tags: ["施工中", "施工中", "施工中"],
       // 详情页标题上方的小标题
       kicker: "施工中",
@@ -82,7 +78,7 @@
       // 正文分节数组
       sections: [
         {
-          heading: "绕组、电动势与磁动势",
+          heading: "绕组中感应电流频率成分的分析",
           paragraphs: [
             "不管是同步电机还是异步电机，都具有相似的定子与转子结构结构，二者最大的差别在于其绕组以及绕组的通电方式。"+
             "从电动势与磁动势的角度来分析时可以遵循一套相同的方法。即电机中的电动势均可以认为来自于旋转的磁动势。",
@@ -102,6 +98,24 @@
             "计算方式同上。将其分别映射到定子参考系，因此磁动势正转速度为$n_3+n_1$，反转速度为$n_3-n_1$，分别在定子绕组中继续感应出电流。",
             "如此循环，直至分析出定子绕组与转子绕组中的全部频率分量。"
           ]
+        },
+        {
+          heading:"同步电机运行分析",
+          paragraphs: [
+            ""
+
+
+
+
+
+
+
+
+
+
+
+
+          ]
         }
       ]
     }
@@ -112,7 +126,8 @@
     nickname: "Aertly",
     friendLinks: [
       { label: "Bangumi", url: "https://bgm.tv/user/aertly" },
-      { label: "Bilibili", url: "https://space.bilibili.com/267637114" }
+      { label: "Bilibili", url: "https://space.bilibili.com/267637114" },
+      { label: "Steam", url: "https://steamcommunity.com/id/aertly/"}
     ],
     introTitle: "这里是 Aertly。",
     introParagraphs: [

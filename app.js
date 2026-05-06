@@ -286,7 +286,8 @@ async function setupHomeStats() {
   }
 
   const storageCountKey = "aertly-home-views-count";
-  const sessionMarkKey = "aertly-home-viewed";
+  const localSessionMarkKey = "aertly-home-viewed-local";
+  const remoteSessionMarkKey = "aertly-home-viewed-remote";
   const supabaseConfig = window.AERTLY_SUPABASE || {};
   const hasSupabaseConfig = Boolean(supabaseConfig.url && supabaseConfig.anonKey && window.supabase);
   const pageViewsTable = supabaseConfig.pageViewsTable || "page_views";
@@ -304,10 +305,10 @@ async function setupHomeStats() {
 
   function ensureLocalView() {
     let count = readLocalViews();
-    if (sessionStorage.getItem(sessionMarkKey) !== "true") {
+    if (sessionStorage.getItem(localSessionMarkKey) !== "true") {
       count += 1;
       writeLocalViews(count);
-      sessionStorage.setItem(sessionMarkKey, "true");
+      sessionStorage.setItem(localSessionMarkKey, "true");
     }
     return count;
   }
@@ -317,7 +318,7 @@ async function setupHomeStats() {
       return null;
     }
 
-    if (sessionStorage.getItem(sessionMarkKey) !== "true") {
+    if (sessionStorage.getItem(remoteSessionMarkKey) !== "true") {
       const { error: insertError } = await supabaseClient
         .from(pageViewsTable)
         .insert({ page_key: "home" });
@@ -326,7 +327,7 @@ async function setupHomeStats() {
         return null;
       }
 
-      sessionStorage.setItem(sessionMarkKey, "true");
+      sessionStorage.setItem(remoteSessionMarkKey, "true");
     }
 
     const { count, error: countError } = await supabaseClient
