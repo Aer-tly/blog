@@ -524,12 +524,38 @@ function setupComments() {
     });
 
     const threaded = [];
-    rootComments.forEach((root) => {
-      threaded.push({ ...root, depth: 0 });
-      const replies = repliesByParent.get(root.id) || [];
+    const visited = new Set();
+
+    const appendReplies = (parentId) => {
+      const replies = repliesByParent.get(parentId) || [];
       replies.forEach((reply) => {
+        if (visited.has(reply.id)) {
+          return;
+        }
+        visited.add(reply.id);
+        // Keep all replies visually aligned at one indent level.
         threaded.push({ ...reply, depth: 1 });
+        appendReplies(reply.id);
       });
+    };
+
+    rootComments.forEach((root) => {
+      if (visited.has(root.id)) {
+        return;
+      }
+      visited.add(root.id);
+      threaded.push({ ...root, depth: 0 });
+      appendReplies(root.id);
+    });
+
+    // Fallback: prevent orphaned chains from disappearing if parent is missing.
+    comments.forEach((item) => {
+      if (visited.has(item.id)) {
+        return;
+      }
+      visited.add(item.id);
+      threaded.push({ ...item, depth: item.replyTo ? 1 : 0 });
+      appendReplies(item.id);
     });
 
     return threaded;
