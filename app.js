@@ -2,6 +2,10 @@
 document.documentElement.classList.add("js-ready");
 
 const DEFAULT_COMMENT_AVATAR = "./default-avatar.svg";
+const LIVE2D_INTERACTION_CONFIG = {
+  enableQunCutClick: false,
+  enableQunCutRestore: false
+};
 
 function byId(id) {
   return document.getElementById(id);
@@ -948,6 +952,7 @@ async function setupLive2D() {
 
   const coreModel = model.internalModel?.coreModel;
   const motionGroups = new Set(Object.keys(modelConfig.FileReferences?.Motions || {}));
+  let isQunCutActive = false;
 
   lockedParamUpdater = () => {
     if (!coreModel) {
@@ -1016,6 +1021,15 @@ async function setupLive2D() {
     return true;
   };
 
+  const playFirstAvailableMotion = (groupNames, priority = 2) => {
+    for (const name of groupNames) {
+      if (playMotionGroup(name, priority)) {
+        return name;
+      }
+    }
+    return null;
+  };
+
   const handlePointerDown = (e) => {
     e.preventDefault();
     const rect = app.view.getBoundingClientRect();
@@ -1031,11 +1045,27 @@ async function setupLive2D() {
       } catch {}
     }
 
-    if (hits.some(h => ["cut_qun", "qun", "qun_f_r", "leg_r_3"].includes(h))) {
+    if (
+      LIVE2D_INTERACTION_CONFIG.enableQunCutClick &&
+      hits.some(h => ["cut_qun", "qun", "qun_f_r", "leg_r_3"].includes(h))
+    ) {
       const now = Date.now();
       if (now - lastQunCutAt > 420) {
         lastQunCutAt = now;
-        playMotionGroup("cut_qun", 3);
+        if (isQunCutActive && LIVE2D_INTERACTION_CONFIG.enableQunCutRestore) {
+          const restored = playFirstAvailableMotion(
+            ["reset_qun", "restore_qun", "qun_reset", "qun_restore", "qun_back", "back_qun"],
+            3
+          );
+          if (restored) {
+            isQunCutActive = false;
+            return;
+          }
+        }
+        const cutPlayed = playMotionGroup("cut_qun", 3);
+        if (cutPlayed) {
+          isQunCutActive = true;
+        }
         return;
       }
     }
