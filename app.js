@@ -1,4 +1,4 @@
-﻿const content = window.blogContent;
+const content = window.blogContent;
 document.documentElement.classList.add("js-ready");
 
 const DEFAULT_COMMENT_AVATAR = "./default-avatar.svg";
@@ -117,6 +117,61 @@ function createProjectCard(project) {
 
 function renderHome() {
   setupHomeStats();
+  renderHomeLatest();
+}
+
+function renderHomeLatest() {
+  const feature = byId("home-featured");
+  const noteList = byId("home-notes");
+  const motto = byId("home-motto");
+  const aboutCopy = byId("home-about-copy");
+
+  if (feature && content.posts.length) {
+    const post = content.posts[0];
+    const cover = post.cover || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1200' height='750'%3E%3Crect width='1200' height='750' fill='%23fff8f7'/%3E%3Ccircle cx='940' cy='150' r='260' fill='%23ffd9e4'/%3E%3Ccircle cx='250' cy='650' r='320' fill='%23e4ecf8'/%3E%3Ccircle cx='620' cy='360' r='170' fill='%23ffeef2'/%3E%3C/svg%3E";
+    feature.innerHTML = `
+      <article class="home-feature">
+        <a class="home-feature__media" href="./post.html?slug=${post.slug}" aria-label="阅读《${post.title}》">
+          <img src="${cover}" alt="${post.coverAlt || post.title || "封面"}" loading="lazy" referrerpolicy="no-referrer">
+          <span class="home-feature__index">Latest / 01</span>
+        </a>
+        <div class="home-feature__body">
+          <div class="home-feature__meta">
+            <span>${post.category}</span>
+            <span>${post.date}</span>
+            <span>${post.readTime}</span>
+          </div>
+          <h3>${post.title}</h3>
+          <p>${post.summary}</p>
+          <div class="home-feature__tags post-tags">${renderTags(post.tags || [])}</div>
+          <a class="c-more" href="./post.html?slug=${post.slug}">阅读全文</a>
+        </div>
+      </article>
+    `;
+  }
+
+  if (noteList && content.projects.length) {
+    noteList.innerHTML = content.projects.slice(0, 3).map((note, index) => `
+      <a class="home-note" href="./note.html?slug=${note.slug}">
+        <span class="home-note__index">${String(index + 1).padStart(2, "0")}</span>
+        <span class="home-note__body">
+          <span class="home-note__meta"><span>${note.status}</span><span>${note.year}</span></span>
+          <h3>${note.title}</h3>
+          <p>${note.description}</p>
+        </span>
+        <span class="home-note__thumb">
+          <img src="${note.cover || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1200' height='750'%3E%3Crect width='1200' height='750' fill='%23fff8f7'/%3E%3Ccircle cx='940' cy='150' r='260' fill='%23ffd9e4'/%3E%3Ccircle cx='250' cy='650' r='320' fill='%23e4ecf8'/%3E%3Ccircle cx='620' cy='360' r='170' fill='%23ffeef2'/%3E%3C/svg%3E"}" alt="${note.coverAlt || note.title}" loading="lazy" referrerpolicy="no-referrer">
+        </span>
+      </a>
+    `).join("");
+  }
+
+  if (motto) {
+    motto.textContent = content.about.motto;
+  }
+  if (aboutCopy) {
+    aboutCopy.textContent = content.about.introParagraphs[0] || "欢迎来到我的小站";
+  }
 }
 
 function renderEssays() {
@@ -201,7 +256,7 @@ function renderPost() {
   const post = content.posts.find((item) => item.slug === slug) || content.posts[0];
   const related = content.posts.filter((item) => item.slug !== post.slug).slice(0, 3);
 
-  document.title = "Aertly";
+  document.title = `Aertly — ${post.title}`;
 
   byId("post-kicker").textContent = post.kicker;
   byId("post-title").textContent = post.title;
@@ -232,7 +287,7 @@ function renderNote() {
   const note = content.projects.find((item) => item.slug === slug) || content.projects[0];
   const related = content.projects.filter((item) => item.slug !== note.slug).slice(0, 3);
 
-  document.title = "Aertly";
+  document.title = `Aertly — ${note.title}`;
 
   byId("note-kicker").textContent = note.kicker;
   byId("note-title").textContent = note.title;

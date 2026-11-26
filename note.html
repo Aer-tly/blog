@@ -1,54 +1,85 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Aertly</title>
+  <title>Aertly — 笔记</title>
   <meta name="description" content="Aertly 的笔记详情页。">
+  <meta name="theme-color" content="#fffdfb">
   <link rel="icon" href="./person.jpg" type="image/jpeg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link
-    href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Noto+Serif+SC:wght@400;500;600;700&display=swap"
-    rel="stylesheet"
-  >
-  <link rel="stylesheet" href="./styles.css">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body);"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@200;300;400;500;600;700&family=Zen+Old+Mincho:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css?v=6">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body);"></script>
 </head>
 <body data-page="note">
+<div class="scroll-progress" aria-hidden="true"></div>
+  <div class="ambient" aria-hidden="true">
+    <img class="-a" src="./assets/kamiina/blur_large.png" alt="">
+    <img class="-b" src="./assets/kamiina/blur_small.png" alt="">
+    <img class="-c" src="./assets/kamiina/blur_small.png" alt="">
+  </div>
   <div class="petal-field" aria-hidden="true"></div>
-  <div class="petal petal-a"></div>
-  <div class="petal petal-c"></div>
 
-  <div class="page-shell">
-    <header class="site-header">
-      <a class="brand" href="./index.html">
-        <span class="brand-avatar">
-          <img src="./person.jpg" alt="头像">
-        </span>
-        <span class="brand-text">
-          <strong>Aertly</strong>
-        </span>
-      </a>
-      <nav class="site-nav">
-        <a href="./index.html" data-nav="home">首页</a>
-        <a href="./essays.html" data-nav="essays">文章</a>
-        <a href="./projects.html" data-nav="projects">笔记</a>
-        <a href="./about.html" data-nav="about">关于</a>
+  <header class="site-header">
+    <button class="menu-toggle" type="button" data-menu-toggle aria-expanded="false" aria-controls="site-menu" aria-label="打开导航菜单">
+      <span class="menu-toggle__lines" aria-hidden="true"><i></i><i></i></span>
+      <span class="menu-toggle__label">MENU</span>
+    </button>
+    <a class="brand" href="./index.html" aria-label="Aertly 首页">
+      <span class="brand-avatar"><img src="./person.jpg" alt="Aertly 头像"></span>
+      <span class="brand-text"><strong>Aertly</strong><em>Personal Journal</em></span>
+    </a>
+    <nav class="site-nav" aria-label="主导航">
+      <a href="./index.html" data-nav="home">首页</a>
+      <a href="./essays.html" data-nav="essays">文章</a>
+      <a href="./projects.html" data-nav="projects">笔记</a>
+      <a href="./about.html" data-nav="about">关于</a>
+    </nav>
+    <div class="rail-notes" aria-hidden="true"><span>PERSONAL</span><span>JOURNAL</span><span>2026</span></div>
+    <button class="music-toggle" id="music-toggle" type="button" aria-pressed="false">BGM Off</button>
+  </header>
+
+  <div class="menu-overlay" id="site-menu" data-menu aria-hidden="true">
+    <div class="menu-overlay__deco" aria-hidden="true">
+      <img src="./assets/kamiina/blur_large.png" alt="">
+      <img src="./assets/kamiina/blur_small.png" alt="">
+    </div>
+    <div class="menu-overlay__top">
+      <span class="menu-overlay__eyebrow">Aertly — Personal Journal / 2026</span>
+      <button class="menu-close" type="button" data-menu-close aria-label="关闭导航菜单"><span>CLOSE</span><i aria-hidden="true"></i></button>
+    </div>
+    <div class="menu-overlay__body">
+      <nav class="menu-overlay__nav" aria-label="全屏导航">
+        <a href="./index.html" data-nav="home" style="--i:1"><span class="idx">01</span><strong>Top</strong><em>首页</em></a>
+        <a href="./essays.html" data-nav="essays" style="--i:2"><span class="idx">02</span><strong>Essays</strong><em>文章</em></a>
+        <a href="./projects.html" data-nav="projects" style="--i:3"><span class="idx">03</span><strong>Notes</strong><em>笔记</em></a>
+        <a href="./about.html" data-nav="about" style="--i:4"><span class="idx">04</span><strong>About</strong><em>关于</em></a>
       </nav>
-      <button class="music-toggle" id="music-toggle" type="button" aria-pressed="false">BGM Off</button>
-    </header>
-
-    <main class="reading-layout">
-      <article class="reading-paper">
-        <p class="eyebrow" id="note-kicker"></p>
-        <h1 class="reading-title" id="note-title"></h1>
-        <div class="post-card__meta reading-meta" id="note-meta"></div>
-        <p class="reading-intro" id="note-intro"></p>
-        <div id="note-content"></div>
-
+      <div class="menu-overlay__meta">
+        <p class="menu-overlay__quote">まことに人生、一瞬の夢、<br>ゴム風船の、美しさかな。<small>AERTLY / PERSONAL JOURNAL</small></p>
+        <div class="menu-overlay__social">
+        <a href="https://space.bilibili.com/267637114" target="_blank" rel="noopener noreferrer">Bilibili</a>
+        <a href="https://bgm.tv/user/aertly" target="_blank" rel="noopener noreferrer">Bangumi</a>
+        <a href="https://steamcommunity.com/id/aertly/" target="_blank" rel="noopener noreferrer">Steam</a>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="page-shell">
+    <main id="top" class="reading-layout">
+      <aside class="reading-rail" aria-hidden="true"><span>READING</span><span>NOTE / 2026</span></aside>
+      <article class="reading-article" data-reveal>
+        <header class="reading-head">
+          <p class="eyebrow reading-kicker" id="note-kicker"></p>
+          <h1 class="reading-title" id="note-title"></h1>
+          <div class="post-card__meta reading-meta" id="note-meta"></div>
+          <p class="reading-intro" id="note-intro"></p>
+        </header>
+        <div class="reading-body" id="note-content"></div>
         <section class="comment-section" data-reveal>
           <div class="section-heading compact">
             <p class="eyebrow">Comments</p>
@@ -68,26 +99,49 @@
       </article>
 
       <aside class="reading-sidebar">
-        <section class="panel" data-reveal>
-          <p class="eyebrow">Related Notes</p>
-          <h2>你也许会继续读</h2>
-          <div class="post-list related-list" id="related-notes"></div>
-        </section>
+        <div class="sidebar-sticky">
+          <section class="panel" data-reveal>
+            <p class="eyebrow">Related Notes</p>
+            <h2>你也许会继续读</h2>
+            <div class="post-list related-list" id="related-notes"></div>
+          </section>
+          <section class="panel">
+            <p class="eyebrow">Index</p>
+            <h2>继续浏览</h2>
+            <div class="sidebar-links">
+              <a href="./projects.html">全部笔记</a>
+              <a href="./essays.html">全部文章</a>
+              <a href="./about.html">关于 Aertly</a>
+            </div>
+          </section>
+        </div>
       </aside>
     </main>
-
-    <footer class="site-footer">
-      <p>© 2026 Aertly</p>
-      <a href="./projects.html">回到笔记页</a>
-    </footer>
+<footer class="site-footer">
+    <div class="site-footer__wave" aria-hidden="true"></div>
+    <div class="site-footer__deco" aria-hidden="true"></div>
+    <div class="site-footer__inner">
+      <div class="site-footer__brand">
+        <strong>AERTLY</strong>
+        <p>© 2026 Aertly · Personal Journal</p>
+      </div>
+      <nav class="site-footer__links" aria-label="页脚导航">
+        <a href="./index.html">首页</a>
+        <a href="./essays.html">文章</a>
+        <a href="./projects.html">笔记</a>
+        <a href="./about.html">关于</a>
+      </nav>
+      <a class="site-footer__top" href="#top">回到页首</a>
+    </div>
+  </footer>
   </div>
-
   <audio id="bgm" loop preload="auto">
     <source src="./bgm.mp3" type="audio/mpeg">
   </audio>
   <script src="./content.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./supabase-config.js"></script>
-  <script src="./app.js"></script>
+  <script src="./shell.js?v=4"></script>
+  <script src="./app.js?v=4"></script>
 </body>
 </html>
